@@ -1,4 +1,4 @@
-# DevBrain installer for Windows — downloads latest release, installs to ~/.devbrain/bin/
+# DevBrain installer for Windows - downloads latest release, installs to ~/.devbrain/bin/
 $ErrorActionPreference = "Stop"
 
 $Repo = "devbrain-tool/devbrain"

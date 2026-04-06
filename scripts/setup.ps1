@@ -1,4 +1,4 @@
-# DevBrain Setup — installs DevBrain and configures AI tool integration
+# DevBrain Setup - installs DevBrain and configures AI tool integration
 # Usage: irm https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/setup.ps1 | iex
 $ErrorActionPreference = "Stop"
 
@@ -16,7 +16,7 @@ Write-Host "  DevBrain Setup" -ForegroundColor Cyan
 Write-Host "  Your developer's second brain" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Step 1: Detect platform ────────────────────────────────────────────────
+# -- Step 1: Detect platform ------------------------------------------------
 
 $Arch = if ([Environment]::Is64BitOperatingSystem) {
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "win-arm64" } else { "win-x64" }
@@ -25,7 +25,7 @@ $Arch = if ([Environment]::Is64BitOperatingSystem) {
 }
 Write-Info "Platform: $Arch"
 
-# ── Step 2: Install DevBrain ───────────────────────────────────────────────
+# -- Step 2: Install DevBrain -----------------------------------------------
 
 $devbrainCmd = Get-Command devbrain -ErrorAction SilentlyContinue
 if ($devbrainCmd) {
@@ -59,7 +59,7 @@ if ($devbrainCmd) {
     Write-Ok "DevBrain $Version installed to $InstallDir"
 }
 
-# ── Step 3: Create default config ─────────────────────────────────────────
+# -- Step 3: Create default config -----------------------------------------
 
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
@@ -104,7 +104,7 @@ idle_minutes = 60
     Write-Ok "Config already exists"
 }
 
-# ── Step 4: Start daemon ──────────────────────────────────────────────────
+# -- Step 4: Start daemon --------------------------------------------------
 
 $healthCheck = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/health" -ErrorAction SilentlyContinue } catch { $null }
 
@@ -130,7 +130,7 @@ if ($healthCheck) {
     }
 }
 
-# ── Step 5: Configure Claude Code CLI ─────────────────────────────────────
+# -- Step 5: Configure Claude Code CLI -------------------------------------
 
 Write-Info "Configuring Claude Code CLI integration..."
 
@@ -144,7 +144,7 @@ if (Test-Path $ClaudeSettings) {
         Write-Ok "Claude Code hook already configured"
     } else {
         Write-Warn "Claude Code settings exist at $ClaudeSettings"
-        Write-Warn "Add a PostToolUse hook manually — see README for details"
+        Write-Warn "Add a PostToolUse hook manually - see README for details"
     }
 } else {
     @'
@@ -153,7 +153,7 @@ if (Test-Path $ClaudeSettings) {
     "PostToolUse": [
       {
         "type": "command",
-        "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"%CLAUDE_SESSION_ID%\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: %CLAUDE_TOOL_NAME%\\\",\\\"project\\\":\\\"%CLAUDE_PROJECT%\\\"}\" >nul 2>&1"
+        "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: $CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
       }
     ]
   }
@@ -162,7 +162,7 @@ if (Test-Path $ClaudeSettings) {
     Write-Ok "Claude Code hook configured at $ClaudeSettings"
 }
 
-# ── Step 6: Configure GitHub Copilot CLI ──────────────────────────────────
+# -- Step 6: Configure GitHub Copilot CLI ----------------------------------
 
 Write-Info "Configuring GitHub Copilot CLI integration..."
 
@@ -224,7 +224,7 @@ if (Test-Path $PROFILE) {
 Write-Ok "  ghcs  - wraps 'gh copilot suggest' with DevBrain capture"
 Write-Ok "  ghce  - wraps 'gh copilot explain' with DevBrain capture"
 
-# ── Step 7: Check for Ollama ──────────────────────────────────────────────
+# -- Step 7: Check for Ollama ----------------------------------------------
 
 $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
 if (-not $ollamaCmd) {
@@ -250,7 +250,7 @@ if (-not $ollamaCmd) {
         }
     } catch {
         Write-Warn "Ollama installation failed. Install manually: https://ollama.ai"
-        Write-Warn "DevBrain still works — AI features will activate once Ollama is available."
+        Write-Warn "DevBrain still works - AI features will activate once Ollama is available."
     }
 }
 
@@ -288,7 +288,7 @@ if ($ollamaCmd) {
     }
 }
 
-# ── Step 8: Create .devbrainignore ────────────────────────────────────────
+# -- Step 8: Create .devbrainignore ----------------------------------------
 
 if ((Test-Path ".git") -and -not (Test-Path ".devbrainignore")) {
     @'
@@ -303,7 +303,7 @@ secrets/
     Write-Ok "Created .devbrainignore in current project"
 }
 
-# ── Step 9: End-to-End Validation ─────────────────────────────────────────
+# -- Step 9: End-to-End Validation -----------------------------------------
 
 Write-Host ""
 Write-Info "Running end-to-end validation..."
@@ -317,7 +317,7 @@ function Check-Pass($msg) { $script:PassCount++; Write-Host "  PASS  $msg" -Fore
 function Check-Fail($msg) { $script:FailCount++; Write-Host "  FAIL  $msg" -ForegroundColor Red }
 function Check-Warn($msg) { $script:WarnCount++; Write-Host "  WARN  $msg" -ForegroundColor Yellow }
 
-# 9.1 — Binaries installed
+# 9.1 - Binaries installed
 if (Get-Command devbrain -ErrorAction SilentlyContinue) {
     Check-Pass "devbrain CLI found"
 } else { Check-Fail "devbrain CLI not found in PATH" }
@@ -326,24 +326,24 @@ if (Test-Path "$InstallDir\devbrain-daemon.exe") {
     Check-Pass "devbrain-daemon.exe exists"
 } else { Check-Fail "devbrain-daemon.exe not found" }
 
-# 9.2 — Config exists
+# 9.2 - Config exists
 if (Test-Path "$DataDir\settings.toml") {
     Check-Pass "settings.toml exists"
 } else { Check-Fail "settings.toml not found" }
 
-# 9.3 — Daemon running and healthy
+# 9.3 - Daemon running and healthy
 $health = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/health" -ErrorAction Stop } catch { $null }
 if ($health -and $health.status) {
     Check-Pass "Daemon responding on port $DaemonPort"
 } else { Check-Fail "Daemon not responding on port $DaemonPort" }
 
-# 9.4 — Dashboard accessible
+# 9.4 - Dashboard accessible
 $dashboardStatus = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/" -ErrorAction Stop).StatusCode } catch { 0 }
 if ($dashboardStatus -eq 200) {
     Check-Pass "Dashboard serving at http://127.0.0.1:$DaemonPort/"
 } else { Check-Fail "Dashboard not accessible (HTTP $dashboardStatus)" }
 
-# 9.5 — API endpoints working
+# 9.5 - API endpoints working
 $apiObs = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/observations" -ErrorAction Stop).StatusCode } catch { 0 }
 if ($apiObs -eq 200) {
     Check-Pass "API /observations endpoint responding"
@@ -354,7 +354,7 @@ if ($apiSearch -eq 200) {
     Check-Pass "API /search endpoint responding"
 } else { Check-Fail "API /search endpoint failed (HTTP $apiSearch)" }
 
-# 9.6 — Test observation round-trip
+# 9.6 - Test observation round-trip
 $postResult = try {
     Invoke-RestMethod -Uri "http://127.0.0.1:$DaemonPort/api/v1/observations" -Method Post -ContentType "application/json" -Body (@{
         sessionId = "setup-validation"
@@ -375,18 +375,18 @@ if ($postResult) {
     } else { Check-Fail "Observation written but not readable" }
 } else { Check-Fail "Observation write failed" }
 
-# 9.7 — Claude Code hook
+# 9.7 - Claude Code hook
 $claudeSettings = "$env:USERPROFILE\.claude\settings.json"
 if ((Test-Path $claudeSettings) -and ((Get-Content $claudeSettings -Raw) -match "37800")) {
     Check-Pass "Claude Code hook configured"
 } else { Check-Warn "Claude Code hook not detected (manual config may be needed)" }
 
-# 9.8 — Copilot wrappers
+# 9.8 - Copilot wrappers
 if ((Test-Path $PROFILE) -and ((Get-Content $PROFILE -Raw) -match "ghcs")) {
     Check-Pass "Copilot wrappers in PowerShell profile"
 } else { Check-Warn "Copilot wrappers not found in profile" }
 
-# 9.9 — Ollama + model
+# 9.9 - Ollama + model
 $ollamaCmd2 = Get-Command ollama -ErrorAction SilentlyContinue
 if ($ollamaCmd2) {
     $ollamaUp = try { Invoke-RestMethod "http://localhost:11434/api/tags" -ErrorAction Stop; $true } catch { $false }
@@ -399,12 +399,12 @@ if ($ollamaCmd2) {
     } else { Check-Warn "Ollama installed but not running" }
 } else { Check-Warn "Ollama not installed (AI features disabled)" }
 
-# 9.10 — Database
+# 9.10 - Database
 if (Test-Path "$DataDir\devbrain.db") {
     Check-Pass "Database file exists"
 } else { Check-Warn "Database file not yet created (created on first observation)" }
 
-# ── Validation Summary ────────────────────────────────────────────────────
+# -- Validation Summary ----------------------------------------------------
 
 Write-Host ""
 Write-Host "---------------------------------------------"

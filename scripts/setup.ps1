@@ -227,16 +227,65 @@ Write-Ok "  ghce  - wraps 'gh copilot explain' with DevBrain capture"
 # ── Step 7: Check for Ollama ──────────────────────────────────────────────
 
 $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
-if ($ollamaCmd) {
-    $ollamaHealth = try { Invoke-RestMethod "http://localhost:11434/api/tags" -ErrorAction SilentlyContinue } catch { $null }
-    if ($ollamaHealth) {
-        Write-Ok "Ollama detected and running"
-    } else {
-        Write-Warn "Ollama installed but not running. Start it: ollama serve"
+if (-not $ollamaCmd) {
+    Write-Info "Ollama not found. Installing Ollama (needed for local AI features)..."
+
+    try {
+        # Download Ollama Windows installer
+        $ollamaInstaller = "$env:TEMP\OllamaSetup.exe"
+        Write-Info "Downloading Ollama installer..."
+        Invoke-WebRequest -Uri "https://ollama.com/download/OllamaSetup.exe" -OutFile $ollamaInstaller
+        Write-Info "Running Ollama installer (follow the prompts)..."
+        Start-Process -FilePath $ollamaInstaller -Wait
+        Remove-Item $ollamaInstaller -ErrorAction SilentlyContinue
+
+        # Refresh PATH
+        $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
+        $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
+
+        if ($ollamaCmd) {
+            Write-Ok "Ollama installed"
+        } else {
+            Write-Warn "Ollama installed but not in PATH. Restart your terminal."
+        }
+    } catch {
+        Write-Warn "Ollama installation failed. Install manually: https://ollama.ai"
+        Write-Warn "DevBrain still works — AI features will activate once Ollama is available."
     }
-} else {
-    Write-Warn "Ollama not installed. DevBrain works without it but AI features need it."
-    Write-Warn "Install: https://ollama.ai"
+}
+
+$ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
+if ($ollamaCmd) {
+    # Check if Ollama is running
+    $ollamaHealth = try { Invoke-RestMethod "http://localhost:11434/api/tags" -ErrorAction SilentlyContinue } catch { $null }
+
+    if (-not $ollamaHealth) {
+        Write-Info "Starting Ollama..."
+        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
+        Start-Sleep -Seconds 3
+        $ollamaHealth = try { Invoke-RestMethod "http://localhost:11434/api/tags" -ErrorAction SilentlyContinue } catch { $null }
+    }
+
+    if ($ollamaHealth) {
+        Write-Ok "Ollama running"
+
+        # Pull llama3.2:3b (~2GB) if not present
+        $models = & ollama list 2>$null
+        if ($models -notmatch "llama3.2:3b") {
+            Write-Info "Pulling llama3.2:3b model (~2GB download)..."
+            Write-Info "This may take a few minutes on first setup."
+            & ollama pull "llama3.2:3b"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "Model llama3.2:3b ready"
+            } else {
+                Write-Warn "Model download failed. Run manually: ollama pull llama3.2:3b"
+            }
+        } else {
+            Write-Ok "Model llama3.2:3b already available"
+        }
+    } else {
+        Write-Warn "Ollama installed but failed to start. Run: ollama serve"
+    }
 }
 
 # ── Step 8: Create .devbrainignore ────────────────────────────────────────

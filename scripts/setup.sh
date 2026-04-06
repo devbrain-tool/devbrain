@@ -273,21 +273,56 @@ ok "  ghce  — wraps 'gh copilot explain' with DevBrain capture"
 
 # ── Step 7: Check for Ollama ──────────────────────────────────────────────
 
-if command -v ollama &>/dev/null; then
-  if curl -s "http://localhost:11434/api/tags" >/dev/null 2>&1; then
-    ok "Ollama detected and running"
-    # Pull required model if not present
-    if ! ollama list 2>/dev/null | grep -q "llama3.2:3b"; then
-      info "Pulling llama3.2:3b model for local AI features..."
-      ollama pull llama3.2:3b &
-      warn "Model downloading in background. Briefings and tagging will work once complete."
+if ! command -v ollama &>/dev/null; then
+  info "Ollama not found. Installing Ollama (needed for local AI features)..."
+
+  if [ "$PLATFORM" = "osx" ]; then
+    # macOS: use Homebrew if available, otherwise direct download
+    if command -v brew &>/dev/null; then
+      brew install ollama 2>&1 | tail -1
+    else
+      curl -fsSL https://ollama.ai/install.sh | sh
     fi
   else
-    warn "Ollama installed but not running. Start it: ollama serve"
+    # Linux: official install script
+    curl -fsSL https://ollama.ai/install.sh | sh
   fi
-else
-  warn "Ollama not installed. DevBrain works without it but AI features (briefings, tagging) need it."
-  warn "Install: https://ollama.ai"
+
+  if command -v ollama &>/dev/null; then
+    ok "Ollama installed"
+  else
+    warn "Ollama installation failed. Install manually: https://ollama.ai"
+    warn "DevBrain still works — AI features will activate once Ollama is available."
+  fi
+fi
+
+if command -v ollama &>/dev/null; then
+  # Start Ollama if not running
+  if ! curl -s "http://localhost:11434/api/tags" >/dev/null 2>&1; then
+    info "Starting Ollama..."
+    ollama serve &>/dev/null &
+    sleep 3
+  fi
+
+  if curl -s "http://localhost:11434/api/tags" >/dev/null 2>&1; then
+    ok "Ollama running"
+
+    # Pull llama3.2:3b (~2GB) if not present
+    if ! ollama list 2>/dev/null | grep -q "llama3.2:3b"; then
+      info "Pulling llama3.2:3b model (~2GB download)..."
+      info "This may take a few minutes on first setup."
+      ollama pull llama3.2:3b
+      if [ $? -eq 0 ]; then
+        ok "Model llama3.2:3b ready"
+      else
+        warn "Model download failed. Run manually: ollama pull llama3.2:3b"
+      fi
+    else
+      ok "Model llama3.2:3b already available"
+    fi
+  else
+    warn "Ollama installed but failed to start. Run: ollama serve"
+  fi
 fi
 
 # ── Step 8: Create .devbrainignore template ───────────────────────────────

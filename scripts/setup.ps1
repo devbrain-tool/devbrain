@@ -303,7 +303,131 @@ secrets/
     Write-Ok "Created .devbrainignore in current project"
 }
 
-# ── Done ──────────────────────────────────────────────────────────────────
+# ── Step 9: End-to-End Validation ─────────────────────────────────────────
+
+Write-Host ""
+Write-Info "Running end-to-end validation..."
+Write-Host ""
+
+$PassCount = 0
+$FailCount = 0
+$WarnCount = 0
+
+function Check-Pass($msg) { $script:PassCount++; Write-Host "  PASS  $msg" -ForegroundColor Green }
+function Check-Fail($msg) { $script:FailCount++; Write-Host "  FAIL  $msg" -ForegroundColor Red }
+function Check-Warn($msg) { $script:WarnCount++; Write-Host "  WARN  $msg" -ForegroundColor Yellow }
+
+# 9.1 — Binaries installed
+if (Get-Command devbrain -ErrorAction SilentlyContinue) {
+    Check-Pass "devbrain CLI found"
+} else { Check-Fail "devbrain CLI not found in PATH" }
+
+if (Test-Path "$InstallDir\devbrain-daemon.exe") {
+    Check-Pass "devbrain-daemon.exe exists"
+} else { Check-Fail "devbrain-daemon.exe not found" }
+
+# 9.2 — Config exists
+if (Test-Path "$DataDir\settings.toml") {
+    Check-Pass "settings.toml exists"
+} else { Check-Fail "settings.toml not found" }
+
+# 9.3 — Daemon running and healthy
+$health = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/health" -ErrorAction Stop } catch { $null }
+if ($health -and $health.status) {
+    Check-Pass "Daemon responding on port $DaemonPort"
+} else { Check-Fail "Daemon not responding on port $DaemonPort" }
+
+# 9.4 — Dashboard accessible
+$dashboardStatus = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/" -ErrorAction Stop).StatusCode } catch { 0 }
+if ($dashboardStatus -eq 200) {
+    Check-Pass "Dashboard serving at http://127.0.0.1:$DaemonPort/"
+} else { Check-Fail "Dashboard not accessible (HTTP $dashboardStatus)" }
+
+# 9.5 — API endpoints working
+$apiObs = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/observations" -ErrorAction Stop).StatusCode } catch { 0 }
+if ($apiObs -eq 200) {
+    Check-Pass "API /observations endpoint responding"
+} else { Check-Fail "API /observations endpoint failed (HTTP $apiObs)" }
+
+$apiSearch = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/search?q=test&limit=1" -ErrorAction Stop).StatusCode } catch { 0 }
+if ($apiSearch -eq 200) {
+    Check-Pass "API /search endpoint responding"
+} else { Check-Fail "API /search endpoint failed (HTTP $apiSearch)" }
+
+# 9.6 — Test observation round-trip
+$postResult = try {
+    Invoke-RestMethod -Uri "http://127.0.0.1:$DaemonPort/api/v1/observations" -Method Post -ContentType "application/json" -Body (@{
+        sessionId = "setup-validation"
+        eventType = "Decision"
+        source = "ClaudeCode"
+        rawContent = "DevBrain setup validation test"
+        project = "devbrain-setup"
+    } | ConvertTo-Json) -ErrorAction Stop
+    $true
+} catch { $false }
+
+if ($postResult) {
+    Check-Pass "Observation write succeeded"
+    Start-Sleep -Seconds 1
+    $readResult = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/observations?project=devbrain-setup&limit=1" -ErrorAction Stop } catch { $null }
+    if ($readResult -and ($readResult | ConvertTo-Json) -match "devbrain-setup") {
+        Check-Pass "Observation read-back verified"
+    } else { Check-Fail "Observation written but not readable" }
+} else { Check-Fail "Observation write failed" }
+
+# 9.7 — Claude Code hook
+$claudeSettings = "$env:USERPROFILE\.claude\settings.json"
+if ((Test-Path $claudeSettings) -and ((Get-Content $claudeSettings -Raw) -match "37800")) {
+    Check-Pass "Claude Code hook configured"
+} else { Check-Warn "Claude Code hook not detected (manual config may be needed)" }
+
+# 9.8 — Copilot wrappers
+if ((Test-Path $PROFILE) -and ((Get-Content $PROFILE -Raw) -match "ghcs")) {
+    Check-Pass "Copilot wrappers in PowerShell profile"
+} else { Check-Warn "Copilot wrappers not found in profile" }
+
+# 9.9 — Ollama + model
+$ollamaCmd2 = Get-Command ollama -ErrorAction SilentlyContinue
+if ($ollamaCmd2) {
+    $ollamaUp = try { Invoke-RestMethod "http://localhost:11434/api/tags" -ErrorAction Stop; $true } catch { $false }
+    if ($ollamaUp) {
+        Check-Pass "Ollama running"
+        $models2 = & ollama list 2>$null
+        if ($models2 -match "llama3.2:3b") {
+            Check-Pass "Model llama3.2:3b available"
+        } else { Check-Warn "Model llama3.2:3b not yet downloaded" }
+    } else { Check-Warn "Ollama installed but not running" }
+} else { Check-Warn "Ollama not installed (AI features disabled)" }
+
+# 9.10 — Database
+if (Test-Path "$DataDir\devbrain.db") {
+    Check-Pass "Database file exists"
+} else { Check-Warn "Database file not yet created (created on first observation)" }
+
+# ── Validation Summary ────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "---------------------------------------------"
+Write-Host "  Results:  " -NoNewline
+Write-Host "$PassCount passed" -ForegroundColor Green -NoNewline
+Write-Host "  " -NoNewline
+Write-Host "$FailCount failed" -ForegroundColor Red -NoNewline
+Write-Host "  " -NoNewline
+Write-Host "$WarnCount warnings" -ForegroundColor Yellow
+Write-Host "---------------------------------------------"
+
+if ($FailCount -gt 0) {
+    Write-Host ""
+    Write-Host "  Setup completed with failures. Check the errors above." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Troubleshooting:"
+    Write-Host "    1. Check daemon logs: Get-Content $DataDir\logs\daemon.log"
+    Write-Host "    2. Restart daemon:   devbrain stop; devbrain start"
+    Write-Host "    3. Check health:     Invoke-RestMethod http://127.0.0.1:$DaemonPort/api/v1/health"
+    Write-Host "    4. Report issue:     https://github.com/$Repo/issues"
+    Write-Host ""
+    exit 1
+}
 
 Write-Host ""
 Write-Host "  Setup Complete!" -ForegroundColor Green

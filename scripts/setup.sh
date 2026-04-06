@@ -342,7 +342,148 @@ IGNORE
   ok "Created .devbrainignore in current project"
 fi
 
-# ── Done ──────────────────────────────────────────────────────────────────
+# ── Step 9: End-to-End Validation ─────────────────────────────────────────
+
+echo ""
+info "Running end-to-end validation..."
+echo ""
+
+PASS=0
+FAIL=0
+WARN_COUNT=0
+
+check_pass() { PASS=$((PASS + 1)); ok "  PASS  $1"; }
+check_fail() { FAIL=$((FAIL + 1)); err "  FAIL  $1"; }
+check_warn() { WARN_COUNT=$((WARN_COUNT + 1)); warn "  WARN  $1"; }
+
+# 9.1 — Binaries installed
+if command -v devbrain &>/dev/null; then
+  check_pass "devbrain CLI found at $(which devbrain)"
+else
+  check_fail "devbrain CLI not found in PATH"
+fi
+
+if [ -f "$INSTALL_DIR/devbrain-daemon" ]; then
+  check_pass "devbrain-daemon binary exists"
+else
+  check_fail "devbrain-daemon binary not found at $INSTALL_DIR/devbrain-daemon"
+fi
+
+# 9.2 — Config exists
+if [ -f "$DATA_DIR/settings.toml" ]; then
+  check_pass "settings.toml exists at $DATA_DIR"
+else
+  check_fail "settings.toml not found"
+fi
+
+# 9.3 — Daemon running and healthy
+HEALTH=$(curl -s "http://127.0.0.1:$DAEMON_PORT/api/v1/health" 2>/dev/null)
+if [ $? -eq 0 ] && echo "$HEALTH" | grep -q '"status"'; then
+  check_pass "Daemon responding on port $DAEMON_PORT"
+else
+  check_fail "Daemon not responding on port $DAEMON_PORT"
+fi
+
+# 9.4 — Dashboard accessible
+DASHBOARD=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$DAEMON_PORT/" 2>/dev/null)
+if [ "$DASHBOARD" = "200" ]; then
+  check_pass "Dashboard serving at http://127.0.0.1:$DAEMON_PORT/"
+else
+  check_fail "Dashboard not accessible (HTTP $DASHBOARD)"
+fi
+
+# 9.5 — API endpoints working
+API_OBS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$DAEMON_PORT/api/v1/observations" 2>/dev/null)
+if [ "$API_OBS" = "200" ]; then
+  check_pass "API /observations endpoint responding"
+else
+  check_fail "API /observations endpoint failed (HTTP $API_OBS)"
+fi
+
+API_SEARCH=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$DAEMON_PORT/api/v1/search?q=test&limit=1" 2>/dev/null)
+if [ "$API_SEARCH" = "200" ]; then
+  check_pass "API /search endpoint responding"
+else
+  check_fail "API /search endpoint failed (HTTP $API_SEARCH)"
+fi
+
+# 9.6 — Test observation round-trip (write + read)
+TEST_ID="setup-test-$(date +%s)"
+POST_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:$DAEMON_PORT/api/v1/observations" \
+  -H "Content-Type: application/json" \
+  -d "{\"sessionId\":\"setup-validation\",\"eventType\":\"Decision\",\"source\":\"ClaudeCode\",\"rawContent\":\"DevBrain setup validation test\",\"project\":\"devbrain-setup\"}" 2>/dev/null)
+if [ "$POST_RESULT" = "201" ]; then
+  check_pass "Observation write succeeded"
+
+  # Verify it's readable
+  sleep 1
+  READ_RESULT=$(curl -s "http://127.0.0.1:$DAEMON_PORT/api/v1/observations?project=devbrain-setup&limit=1" 2>/dev/null)
+  if echo "$READ_RESULT" | grep -q "devbrain-setup"; then
+    check_pass "Observation read-back verified"
+  else
+    check_fail "Observation written but not readable"
+  fi
+else
+  check_fail "Observation write failed (HTTP $POST_RESULT)"
+fi
+
+# 9.7 — Claude Code hook configured
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$CLAUDE_SETTINGS" ] && grep -q "devbrain\|37800" "$CLAUDE_SETTINGS" 2>/dev/null; then
+  check_pass "Claude Code hook configured"
+else
+  check_warn "Claude Code hook not detected (manual config may be needed)"
+fi
+
+# 9.8 — Copilot wrappers
+if [ -f "$INSTALL_DIR/ghcs" ] && [ -x "$INSTALL_DIR/ghcs" ]; then
+  check_pass "Copilot wrapper 'ghcs' installed"
+else
+  check_warn "Copilot wrapper 'ghcs' not found"
+fi
+
+# 9.9 — Ollama + model
+if command -v ollama &>/dev/null; then
+  if curl -s "http://localhost:11434/api/tags" >/dev/null 2>&1; then
+    check_pass "Ollama running"
+    if ollama list 2>/dev/null | grep -q "llama3.2:3b"; then
+      check_pass "Model llama3.2:3b available"
+    else
+      check_warn "Model llama3.2:3b not yet downloaded"
+    fi
+  else
+    check_warn "Ollama installed but not running"
+  fi
+else
+  check_warn "Ollama not installed (AI features disabled)"
+fi
+
+# 9.10 — SQLite database created
+if [ -f "$DATA_DIR/devbrain.db" ]; then
+  check_pass "Database file exists at $DATA_DIR/devbrain.db"
+else
+  check_warn "Database file not yet created (will be created on first observation)"
+fi
+
+# ── Validation Summary ────────────────────────────────────────────────────
+
+echo ""
+echo "─────────────────────────────────────────────"
+echo -e "  Results:  ${GREEN}$PASS passed${NC}  ${RED}$FAIL failed${NC}  ${YELLOW}$WARN_COUNT warnings${NC}"
+echo "─────────────────────────────────────────────"
+
+if [ $FAIL -gt 0 ]; then
+  echo ""
+  err "Setup completed with failures. Check the errors above."
+  echo ""
+  echo "  Troubleshooting:"
+  echo "    1. Check daemon logs: cat $DATA_DIR/logs/daemon.log"
+  echo "    2. Restart daemon:   devbrain stop && devbrain start"
+  echo "    3. Check health:     curl http://127.0.0.1:$DAEMON_PORT/api/v1/health"
+  echo "    4. Report issue:     https://github.com/$REPO/issues"
+  echo ""
+  exit 1
+fi
 
 echo ""
 echo -e "${GREEN}╭─────────────────────────────────────────╮${NC}"

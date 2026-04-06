@@ -90,7 +90,7 @@ jobs:
           mkdir -p out/release
           cp out/stage/DevBrain.Api out/release/devbrain-daemon
           cp out/cli-stage/DevBrain.Cli out/release/devbrain
-          cp LICENSE out/release/ 2>/dev/null || echo "MIT License" > out/release/LICENSE
+          cp LICENSE out/release/
           chmod +x out/release/devbrain-daemon out/release/devbrain
 
       - name: Stage release (Windows)
@@ -100,7 +100,7 @@ jobs:
           mkdir -p out/release
           cp out/stage/DevBrain.Api.exe out/release/devbrain-daemon.exe
           cp out/cli-stage/DevBrain.Cli.exe out/release/devbrain.exe
-          cp LICENSE out/release/ 2>/dev/null || echo "MIT License" > out/release/LICENSE
+          cp LICENSE out/release/
 
       # Package
       - name: Create archive (tar.gz)

@@ -3,7 +3,7 @@
 **A developer's second brain that passively captures what you do, understands why you did it, and proactively tells you what you need to know.**
 
 [![Build](https://img.shields.io/github/actions/workflow/status/devbrain-tool/devbrain/build.yml?branch=main&style=flat-square)](https://github.com/devbrain-tool/devbrain/actions)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/devbrain-tool/devbrain?style=flat-square)](https://github.com/devbrain-tool/devbrain/releases)
 [![.NET](https://img.shields.io/badge/.NET-9+-512BD4?style=flat-square)](https://dotnet.microsoft.com)
 
@@ -190,7 +190,7 @@ If you're looking for a place to start, check issues labeled [`good first issue`
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE)
 
 ## Acknowledgments
 

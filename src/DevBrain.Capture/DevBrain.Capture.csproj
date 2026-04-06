@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevBrain.Core\DevBrain.Core.csproj" />
+    <ProjectReference Include="..\DevBrain.Storage\DevBrain.Storage.csproj" />
+    <ProjectReference Include="..\DevBrain.Llm\DevBrain.Llm.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

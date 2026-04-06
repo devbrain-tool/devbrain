@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevBrain.Core\DevBrain.Core.csproj" />
+    <ProjectReference Include="..\DevBrain.Storage\DevBrain.Storage.csproj" />
+    <ProjectReference Include="..\DevBrain.Capture\DevBrain.Capture.csproj" />
+    <ProjectReference Include="..\DevBrain.Agents\DevBrain.Agents.csproj" />
+    <ProjectReference Include="..\DevBrain.Llm\DevBrain.Llm.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

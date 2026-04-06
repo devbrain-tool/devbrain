@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DevBrain.Agents/DevBrain.Agents.csproj" />
+    <Project Path="src/DevBrain.Api/DevBrain.Api.csproj" />
+    <Project Path="src/DevBrain.Capture/DevBrain.Capture.csproj" />
+    <Project Path="src/DevBrain.Cli/DevBrain.Cli.csproj" />
+    <Project Path="src/DevBrain.Core/DevBrain.Core.csproj" />
+    <Project Path="src/DevBrain.Llm/DevBrain.Llm.csproj" />
+    <Project Path="src/DevBrain.Storage/DevBrain.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DevBrain.Agents.Tests/DevBrain.Agents.Tests.csproj" />
+    <Project Path="tests/DevBrain.Capture.Tests/DevBrain.Capture.Tests.csproj" />
+    <Project Path="tests/DevBrain.Core.Tests/DevBrain.Core.Tests.csproj" />
+    <Project Path="tests/DevBrain.Integration.Tests/DevBrain.Integration.Tests.csproj" />
+    <Project Path="tests/DevBrain.Llm.Tests/DevBrain.Llm.Tests.csproj" />
+    <Project Path="tests/DevBrain.Storage.Tests/DevBrain.Storage.Tests.csproj" />
+  </Folder>
+</Solution>

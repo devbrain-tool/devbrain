@@ -22,7 +22,10 @@ Directory.CreateDirectory(dataPath);
 
 // ── SQLite ────────────────────────────────────────────────────────────────────
 var dbPath = Path.Combine(dataPath, "devbrain.db");
-var connection = new SqliteConnection($"Data Source={dbPath}");
+// SQLite in WAL mode (set by SchemaManager) with Cache=Shared allows concurrent reads
+// and serialized writes. Microsoft.Data.Sqlite handles locking internally.
+var connStr = $"Data Source={dbPath};Cache=Shared";
+var connection = new SqliteConnection(connStr);
 connection.Open();
 SchemaManager.Initialize(connection);
 
@@ -83,9 +86,11 @@ builder.Services.AddSingleton<IObservationStore>(observationStore);
 builder.Services.AddSingleton<IGraphStore>(graphStore);
 builder.Services.AddSingleton<IVectorStore>(vectorStore);
 builder.Services.AddSingleton<ILlmService>(llmService);
+builder.Services.AddSingleton(llmService); // concrete type for ResetDailyCounter
 builder.Services.AddSingleton(eventBus);
 builder.Services.AddSingleton(agentContext);
 builder.Services.AddSingleton(healthMonitor);
+builder.Services.AddSingleton(connection); // for raw SQL queries in endpoints
 
 foreach (var agent in agents)
 {
@@ -116,6 +121,9 @@ app.MapGraphEndpoints();
 app.MapAgentEndpoints();
 app.MapSettingsEndpoints();
 app.MapAdminEndpoints();
+app.MapThreadEndpoints();
+app.MapDeadEndEndpoints();
+app.MapContextEndpoints();
 
 // Dashboard SPA fallback
 app.MapFallbackToFile("index.html");
@@ -124,16 +132,53 @@ app.MapFallbackToFile("index.html");
 var pidFilePath = Path.Combine(dataPath, "daemon.pid");
 var cts = new CancellationTokenSource();
 
+// Start the capture pipeline before registering lifecycle hooks so closures can capture the variables
+var (pipelineInput, pipelineTask) = pipeline.Start(cts.Token);
+
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     File.WriteAllText(pidFilePath, Environment.ProcessId.ToString());
 
     // Initial LLM health check
     _ = healthMonitor.CheckAll();
+
+    // I7: Recurring LLM health check every 30 seconds
+    _ = Task.Run(async () =>
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        while (!cts.Token.IsCancellationRequested)
+        {
+            try { await timer.WaitForNextTickAsync(cts.Token); }
+            catch (OperationCanceledException) { break; }
+
+            try { await healthMonitor.CheckAll(cts.Token); }
+            catch { /* health check failure is non-fatal */ }
+        }
+    });
+
+    // O2: Reset daily cloud LLM counter at midnight
+    _ = Task.Run(async () =>
+    {
+        while (!cts.Token.IsCancellationRequested)
+        {
+            var now = DateTime.UtcNow;
+            var nextMidnight = now.Date.AddDays(1);
+            var delay = nextMidnight - now;
+
+            try { await Task.Delay(delay, cts.Token); }
+            catch (OperationCanceledException) { break; }
+
+            llmService.ResetDailyCounter();
+        }
+    });
 });
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {
+    // C1: Signal pipeline to drain first, then cancel, then close connections
+    pipelineInput.Complete();
+    pipelineTask.Wait(TimeSpan.FromSeconds(5));
+
     cts.Cancel();
 
     if (File.Exists(pidFilePath))
@@ -144,8 +189,5 @@ app.Lifetime.ApplicationStopping.Register(() =>
     ollamaHttp.Dispose();
     anthropicHttp.Dispose();
 });
-
-// Start the capture pipeline
-var (pipelineInput, pipelineTask) = pipeline.Start(cts.Token);
 
 app.Run();

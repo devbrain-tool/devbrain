@@ -15,11 +15,11 @@ jobs:
         with:
           dotnet-version: '9.0'
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore DevBrain.slnx
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build DevBrain.slnx --no-restore
       - name: Test
-        run: dotnet test --no-build --verbosity minimal
+        run: dotnet test DevBrain.slnx --no-build --verbosity minimal
 
   dashboard:
     runs-on: ubuntu-latest

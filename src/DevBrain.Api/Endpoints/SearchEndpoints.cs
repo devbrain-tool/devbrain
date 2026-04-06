@@ -8,7 +8,9 @@ public static class SearchEndpoints
     {
         var group = app.MapGroup("/api/v1/search");
 
-        // Semantic search (FTS for v1)
+        // Semantic search endpoint. Currently degrades to FTS when vector store
+        // is not available (v1). Kept as a separate endpoint so it can diverge
+        // when LanceDB or another vector backend is wired up.
         group.MapGet("/", async (string? q, int? limit, IObservationStore store) =>
         {
             if (string.IsNullOrWhiteSpace(q))

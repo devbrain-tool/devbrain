@@ -58,22 +58,27 @@ public static class BriefingEndpoints
 
         group.MapPost("/generate", (
             IEnumerable<IIntelligenceAgent> agents,
-            AgentContext ctx) =>
+            AgentContext ctx,
+            ILoggerFactory loggerFactory) =>
         {
             var briefingAgent = agents.FirstOrDefault(a => a.Name == "briefing");
             if (briefingAgent is null)
                 return Results.NotFound(new { error = "Briefing agent not found" });
 
-            // Fire-and-forget
+            var logger = loggerFactory.CreateLogger("DevBrain.Api.Endpoints.BriefingEndpoints");
+
+            // Fire-and-forget with logging
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    logger.LogInformation("Starting briefing generation");
                     await briefingAgent.Run(ctx, CancellationToken.None);
+                    logger.LogInformation("Briefing generation completed successfully");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Swallow - fire and forget
+                    logger.LogError(ex, "Briefing generation failed");
                 }
             });
 

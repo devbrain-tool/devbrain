@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace DevBrain.Cli;
 
-public class DevBrainHttpClient
+public class DevBrainHttpClient : IDisposable
 {
     private readonly HttpClient _http;
 
@@ -30,7 +30,7 @@ public class DevBrainHttpClient
         var response = await _http.GetAsync(path);
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync();
-        return JsonDocument.Parse(json).RootElement;
+        return JsonSerializer.Deserialize<JsonElement>(json);
     }
 
     public async Task<HttpResponseMessage> Post(string path, object? body = null)
@@ -39,6 +39,19 @@ public class DevBrainHttpClient
             ? JsonContent.Create(body)
             : null;
         return await _http.PostAsync(path, content);
+    }
+
+    public async Task<HttpResponseMessage> Put(string path, object? body = null)
+    {
+        HttpContent? content = body is not null
+            ? JsonContent.Create(body)
+            : null;
+        return await _http.PutAsync(path, content);
+    }
+
+    public async Task<HttpResponseMessage> Delete(string path)
+    {
+        return await _http.DeleteAsync(path);
     }
 
     public async Task<bool> IsHealthy()
@@ -52,5 +65,10 @@ public class DevBrainHttpClient
         {
             return false;
         }
+    }
+
+    public void Dispose()
+    {
+        _http.Dispose();
     }
 }

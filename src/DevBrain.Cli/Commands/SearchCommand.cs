@@ -39,8 +39,8 @@ public class SearchCommand : Command
         try
         {
             var encodedQuery = HttpUtility.UrlEncode(query);
-            var url = $"/api/v1/search?q={encodedQuery}";
-            if (exact) url += "&mode=fts";
+            var endpoint = exact ? "/api/v1/search/exact" : "/api/v1/search";
+            var url = $"{endpoint}?q={encodedQuery}";
 
             var json = await client.GetJson(url);
 

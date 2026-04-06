@@ -1,0 +1,73 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0'
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore
+      - name: Test
+        run: dotnet test --no-build --verbosity minimal
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: cd dashboard && npm ci
+      - name: Build dashboard
+        run: cd dashboard && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: dashboard/dist/
+
+  build:
+    needs: [test, dashboard]
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            ext: .exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            ext: ''
+          - os: macos-latest
+            rid: osx-arm64
+            ext: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0'
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard-dist
+          path: src/DevBrain.Api/wwwroot/
+      - name: Publish Daemon
+        run: dotnet publish src/DevBrain.Api -c Release -r ${{ matrix.rid }} -o out/daemon/
+      - name: Publish CLI
+        run: dotnet publish src/DevBrain.Cli -c Release -r ${{ matrix.rid }} -o out/cli/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devbrain-${{ matrix.rid }}
+          path: |
+            out/daemon/
+            out/cli/

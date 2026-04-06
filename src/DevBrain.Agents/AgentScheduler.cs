@@ -61,15 +61,20 @@ public class AgentScheduler : BackgroundService
     {
         var tasks = new List<Task>();
 
-        // Drain event buffer
-        var hasEvents = !_eventBuffer.IsEmpty;
+        // Drain event buffer into a snapshot
+        var bufferedEvents = new List<Observation>();
+        while (_eventBuffer.TryDequeue(out var obs))
+            bufferedEvents.Add(obs);
+
+        var bufferedEventTypes = bufferedEvents.Select(e => e.EventType).Distinct().ToHashSet();
 
         foreach (var agent in _agents)
         {
             var shouldRun = agent.Schedule switch
             {
-                AgentSchedule.OnEvent onEvent => hasEvents,
-                AgentSchedule.Cron cron => IsCronDue(agent.Name),
+                AgentSchedule.OnEvent onEvent =>
+                    bufferedEvents.Count > 0 && onEvent.Types.Any(t => bufferedEventTypes.Contains(t)),
+                AgentSchedule.Cron => IsCronDue(agent.Name),
                 AgentSchedule.Idle idle => IsIdle(idle.After),
                 _ => false
             };
@@ -82,12 +87,6 @@ public class AgentScheduler : BackgroundService
 
         if (tasks.Count > 0)
             await Task.WhenAll(tasks);
-
-        // Clear the buffer after event agents have run
-        if (hasEvents)
-        {
-            while (_eventBuffer.TryDequeue(out _)) { }
-        }
     }
 
     private bool IsCronDue(string agentName)

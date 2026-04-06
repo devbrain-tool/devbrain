@@ -1,31 +1,38 @@
 namespace DevBrain.Llm;
 
+using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
 
-public class LlmTaskQueue
+public class LlmTaskQueue : ILlmService
 {
     private readonly Func<LlmTask, Task<LlmResult>> _localHandler;
     private readonly Func<LlmTask, Task<LlmResult>> _cloudHandler;
     private readonly Func<bool> _isLocalAvailable;
     private readonly Func<bool> _isCloudAvailable;
+    private readonly Func<string, CancellationToken, Task<float[]>>? _embedHandler;
     private readonly int _maxDailyCloudRequests;
+    private int _cloudRequestsToday;
 
     public LlmTaskQueue(
         Func<LlmTask, Task<LlmResult>> localHandler,
         Func<LlmTask, Task<LlmResult>> cloudHandler,
         Func<bool> isLocalAvailable,
         Func<bool> isCloudAvailable,
-        int maxDailyCloudRequests)
+        int maxDailyCloudRequests,
+        Func<string, CancellationToken, Task<float[]>>? embedHandler = null)
     {
         _localHandler = localHandler;
         _cloudHandler = cloudHandler;
         _isLocalAvailable = isLocalAvailable;
         _isCloudAvailable = isCloudAvailable;
         _maxDailyCloudRequests = maxDailyCloudRequests;
+        _embedHandler = embedHandler;
     }
 
-    public int CloudRequestsToday { get; private set; }
+    public int CloudRequestsToday => _cloudRequestsToday;
     public int QueueDepth => 0;
+    public bool IsLocalAvailable => _isLocalAvailable();
+    public bool IsCloudAvailable => _isCloudAvailable();
 
     public async Task<LlmResult> Submit(LlmTask task, CancellationToken ct = default)
     {
@@ -59,23 +66,30 @@ public class LlmTaskQueue
         }
     }
 
-    public void ResetDailyCounter() => CloudRequestsToday = 0;
+    public async Task<float[]> Embed(string text, CancellationToken ct = default)
+    {
+        if (_embedHandler is not null)
+            return await _embedHandler(text, ct);
+        return new float[384];
+    }
+
+    public void ResetDailyCounter() => Interlocked.Exchange(ref _cloudRequestsToday, 0);
 
     private async Task<LlmResult> TryCloud(LlmTask task)
     {
-        if (CloudRequestsToday >= _maxDailyCloudRequests)
+        if (Interlocked.CompareExchange(ref _cloudRequestsToday, 0, 0) >= _maxDailyCloudRequests)
             return Failure(task, "quota exceeded");
         if (!_isCloudAvailable())
             return Failure(task, "Cloud LLM not available");
-        CloudRequestsToday++;
+        Interlocked.Increment(ref _cloudRequestsToday);
         return await _cloudHandler(task);
     }
 
     private async Task<LlmResult?> TryCloudNoFail(LlmTask task)
     {
-        if (CloudRequestsToday >= _maxDailyCloudRequests) return null;
+        if (Interlocked.CompareExchange(ref _cloudRequestsToday, 0, 0) >= _maxDailyCloudRequests) return null;
         if (!_isCloudAvailable()) return null;
-        CloudRequestsToday++;
+        Interlocked.Increment(ref _cloudRequestsToday);
         return await _cloudHandler(task);
     }
 

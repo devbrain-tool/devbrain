@@ -8,30 +8,24 @@ public class AnthropicClient
 {
     private readonly HttpClient _http;
     private readonly string _model;
-    private bool _configured;
 
-    public AnthropicClient(HttpClient http, string model = "claude-sonnet-4-6")
+    public AnthropicClient(HttpClient http, string apiKey, string model = "claude-sonnet-4-6")
     {
         _http = http;
+        _http.BaseAddress ??= new Uri("https://api.anthropic.com");
         _model = model;
+
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            _http.DefaultRequestHeaders.TryAddWithoutValidation("x-api-key", apiKey);
+            _http.DefaultRequestHeaders.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+        }
     }
 
-    public bool IsAvailable { get; private set; }
-
-    public void Configure(string apiKey)
-    {
-        _http.DefaultRequestHeaders.Remove("x-api-key");
-        _http.DefaultRequestHeaders.Add("x-api-key", apiKey);
-
-        _http.DefaultRequestHeaders.Remove("anthropic-version");
-        _http.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-
-        _configured = true;
-    }
+    public bool IsAvailable => _http.DefaultRequestHeaders.Contains("x-api-key");
 
     public Task CheckHealth()
     {
-        IsAvailable = _configured;
         return Task.CompletedTask;
     }
 
@@ -49,7 +43,7 @@ public class AnthropicClient
                 }
             };
 
-            var response = await _http.PostAsJsonAsync("https://api.anthropic.com/v1/messages", payload, ct);
+            var response = await _http.PostAsJsonAsync("/v1/messages", payload, ct);
             response.EnsureSuccessStatusCode();
 
             var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);

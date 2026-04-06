@@ -25,7 +25,15 @@ public class EventBus
 
         foreach (var handler in snapshot)
         {
-            handler(observation);
+            try
+            {
+                handler(observation);
+            }
+            catch
+            {
+                // Swallow handler exceptions to prevent pipeline crashes.
+                // In production, inject ILogger and log here.
+            }
         }
     }
 }

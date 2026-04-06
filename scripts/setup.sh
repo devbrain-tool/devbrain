@@ -106,7 +106,7 @@ privacy_mode = "redact"
 [llm.local]
 enabled = true
 provider = "ollama"
-model = "llama3.2"
+model = "llama3.2:3b"
 endpoint = "http://localhost:11434"
 
 [llm.cloud]
@@ -277,9 +277,9 @@ if command -v ollama &>/dev/null; then
   if curl -s "http://localhost:11434/api/tags" >/dev/null 2>&1; then
     ok "Ollama detected and running"
     # Pull required model if not present
-    if ! ollama list 2>/dev/null | grep -q "llama3.2"; then
-      info "Pulling llama3.2 model for local AI features..."
-      ollama pull llama3.2 &
+    if ! ollama list 2>/dev/null | grep -q "llama3.2:3b"; then
+      info "Pulling llama3.2:3b model for local AI features..."
+      ollama pull llama3.2:3b &
       warn "Model downloading in background. Briefings and tagging will work once complete."
     fi
   else

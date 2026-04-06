@@ -79,7 +79,7 @@ privacy_mode = "redact"
 [llm.local]
 enabled = true
 provider = "ollama"
-model = "llama3.2"
+model = "llama3.2:3b"
 endpoint = "http://localhost:11434"
 
 [llm.cloud]

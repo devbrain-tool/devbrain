@@ -45,7 +45,7 @@ public class LocalLlmSettings
 {
     public bool Enabled { get; set; } = true;
     public string Provider { get; set; } = "ollama";
-    public string Model { get; set; } = "llama3.2";
+    public string Model { get; set; } = "llama3.2:3b";
     public string Endpoint { get; set; } = "http://localhost:11434";
     public int MaxConcurrent { get; set; } = 2;
 }

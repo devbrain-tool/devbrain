@@ -29,6 +29,10 @@ There are many ways to contribute to DevBrain:
 ```bash
 git clone https://github.com/devbrain-tool/devbrain.git
 cd devbrain
+
+# Install the secret-scanning pre-commit hook
+cp scripts/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
 ```
 
 **Build the daemon and CLI:**

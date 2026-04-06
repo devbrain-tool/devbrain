@@ -1,0 +1,54 @@
+#!/bin/bash
+# Pre-commit hook: blocks commits containing potential secrets
+# Install: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -e
+
+echo "Scanning staged files for secrets..."
+
+# Get staged file contents
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+FOUND=0
+
+for FILE in $STAGED; do
+  # Skip binary files and lock files
+  case "$FILE" in
+    *.png|*.jpg|*.ico|*.woff|*.ttf|*.lock|*.svg) continue ;;
+  esac
+
+  # Skip if file doesn't exist (deleted)
+  [ -f "$FILE" ] || continue
+
+  CONTENT=$(git show ":$FILE" 2>/dev/null || true)
+
+  # Check for common secret patterns
+  if echo "$CONTENT" | grep -qEi '(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|-----BEGIN.*(PRIVATE|RSA).*KEY)'; then
+    echo "BLOCKED: Potential secret found in $FILE"
+    FOUND=1
+  fi
+
+  if echo "$CONTENT" | grep -qEi '(api[_-]?key|secret|password|token)\s*[:=]\s*['\''"][a-zA-Z0-9/+]{16,}'; then
+    echo "BLOCKED: Potential credential found in $FILE"
+    FOUND=1
+  fi
+
+  # Check for .env file contents
+  if echo "$CONTENT" | grep -qE '^[A-Z_]+=.{8,}$' && [[ "$FILE" == *.env* ]]; then
+    echo "BLOCKED: Environment file with values: $FILE"
+    FOUND=1
+  fi
+done
+
+if [ $FOUND -ne 0 ]; then
+  echo ""
+  echo "Commit blocked. Remove secrets before committing."
+  echo "If this is a false positive, use: git commit --no-verify"
+  exit 1
+fi
+
+echo "No secrets detected."

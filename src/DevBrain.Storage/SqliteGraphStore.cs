@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
@@ -266,7 +267,7 @@ public class SqliteGraphStore : IGraphStore
                 Type = reader.GetString(3),
                 Data = reader.IsDBNull(4) ? null : reader.GetString(4),
                 Weight = reader.GetDouble(5),
-                CreatedAt = DateTime.Parse(reader.GetString(6))
+                CreatedAt = DateTime.Parse(reader.GetString(6), CultureInfo.InvariantCulture)
             };
         }
         return null;
@@ -281,7 +282,7 @@ public class SqliteGraphStore : IGraphStore
             Name = reader.GetString(2),
             Data = reader.IsDBNull(3) ? null : reader.GetString(3),
             SourceId = reader.IsDBNull(4) ? null : reader.GetString(4),
-            CreatedAt = DateTime.Parse(reader.GetString(5))
+            CreatedAt = DateTime.Parse(reader.GetString(5), CultureInfo.InvariantCulture)
         };
     }
 }

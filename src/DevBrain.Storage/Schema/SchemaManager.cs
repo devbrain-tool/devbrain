@@ -41,76 +41,82 @@ public static class SchemaManager
             CREATE TABLE IF NOT EXISTS threads (
                 id TEXT PRIMARY KEY,
                 project TEXT NOT NULL,
+                branch TEXT,
                 title TEXT,
+                state TEXT NOT NULL DEFAULT 'Active',
                 started_at TEXT NOT NULL,
                 last_activity TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'active'
+                observation_count INTEGER DEFAULT 0,
+                summary TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS dead_ends (
                 id TEXT PRIMARY KEY,
-                observation_id TEXT NOT NULL,
+                thread_id TEXT REFERENCES threads(id),
                 project TEXT NOT NULL,
                 description TEXT NOT NULL,
-                reason TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+                approach TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                files_involved TEXT,
+                detected_at TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS graph_nodes (
                 id TEXT PRIMARY KEY,
-                project TEXT NOT NULL,
-                label TEXT NOT NULL,
-                node_type TEXT NOT NULL,
-                metadata TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL
+                type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                data TEXT,
+                source_id TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS graph_edges (
                 id TEXT PRIMARY KEY,
-                source_id TEXT NOT NULL,
-                target_id TEXT NOT NULL,
-                edge_type TEXT NOT NULL,
-                weight REAL NOT NULL DEFAULT 1.0,
-                metadata TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (source_id) REFERENCES graph_nodes(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES graph_nodes(id) ON DELETE CASCADE
+                source_id TEXT NOT NULL REFERENCES graph_nodes(id),
+                target_id TEXT NOT NULL REFERENCES graph_nodes(id),
+                type TEXT NOT NULL,
+                data TEXT,
+                weight REAL DEFAULT 1.0,
+                created_at TEXT DEFAULT (datetime('now'))
             );
 
-            CREATE INDEX IF NOT EXISTS idx_observations_project ON observations(project);
-            CREATE INDEX IF NOT EXISTS idx_observations_event_type ON observations(event_type);
-            CREATE INDEX IF NOT EXISTS idx_observations_thread_id ON observations(thread_id);
-            CREATE INDEX IF NOT EXISTS idx_observations_timestamp ON observations(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_observations_summary ON observations(summary);
-            CREATE INDEX IF NOT EXISTS idx_dead_ends_project ON dead_ends(project);
-            CREATE INDEX IF NOT EXISTS idx_graph_nodes_project ON graph_nodes(project);
-            CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_id);
-            CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_id);
+            CREATE INDEX IF NOT EXISTS idx_obs_thread ON observations(thread_id);
+            CREATE INDEX IF NOT EXISTS idx_obs_session ON observations(session_id);
+            CREATE INDEX IF NOT EXISTS idx_obs_project ON observations(project);
+            CREATE INDEX IF NOT EXISTS idx_obs_timestamp ON observations(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_obs_event_type ON observations(event_type);
+            CREATE INDEX IF NOT EXISTS idx_de_project ON dead_ends(project);
+            CREATE INDEX IF NOT EXISTS idx_ge_source ON graph_edges(source_id);
+            CREATE INDEX IF NOT EXISTS idx_ge_target ON graph_edges(target_id);
+            CREATE INDEX IF NOT EXISTS idx_ge_type ON graph_edges(type);
+            CREATE INDEX IF NOT EXISTS idx_gn_type ON graph_nodes(type);
+            CREATE INDEX IF NOT EXISTS idx_gn_source ON graph_nodes(source_id);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
-                id UNINDEXED,
-                raw_content,
                 summary,
-                content='observations',
-                content_rowid='rowid'
+                raw_content,
+                tags,
+                content=observations,
+                content_rowid=rowid
             );
 
             CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
-                INSERT INTO observations_fts(rowid, id, raw_content, summary)
-                VALUES (new.rowid, new.id, new.raw_content, COALESCE(new.summary, ''));
+                INSERT INTO observations_fts(rowid, summary, raw_content, tags)
+                VALUES (new.rowid, new.summary, new.raw_content, new.tags);
             END;
 
             CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
-                INSERT INTO observations_fts(observations_fts, rowid, id, raw_content, summary)
-                VALUES ('delete', old.rowid, old.id, old.raw_content, COALESCE(old.summary, ''));
+                INSERT INTO observations_fts(observations_fts, rowid, summary, raw_content, tags)
+                VALUES ('delete', old.rowid, old.summary, old.raw_content, old.tags);
             END;
 
             CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
-                INSERT INTO observations_fts(observations_fts, rowid, id, raw_content, summary)
-                VALUES ('delete', old.rowid, old.id, old.raw_content, COALESCE(old.summary, ''));
-                INSERT INTO observations_fts(rowid, id, raw_content, summary)
-                VALUES (new.rowid, new.id, new.raw_content, COALESCE(new.summary, ''));
+                INSERT INTO observations_fts(observations_fts, rowid, summary, raw_content, tags)
+                VALUES ('delete', old.rowid, old.summary, old.raw_content, old.tags);
+                INSERT INTO observations_fts(rowid, summary, raw_content, tags)
+                VALUES (new.rowid, new.summary, new.raw_content, new.tags);
             END;
             """;
         cmd.ExecuteNonQuery();

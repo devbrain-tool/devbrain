@@ -1,4 +1,5 @@
 using DevBrain.Storage;
+using DevBrain.Storage.Schema;
 using Microsoft.Data.Sqlite;
 
 namespace DevBrain.Storage.Tests;
@@ -12,43 +13,13 @@ public class SqliteGraphStoreTests : IAsyncLifetime
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         await _connection.OpenAsync();
-        await InitializeSchema();
+        SchemaManager.Initialize(_connection);
         _store = new SqliteGraphStore(_connection);
     }
 
     public async Task DisposeAsync()
     {
         await _connection.DisposeAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = @"
-            CREATE TABLE graph_nodes (
-                id TEXT PRIMARY KEY,
-                type TEXT NOT NULL,
-                name TEXT NOT NULL,
-                data TEXT,
-                source_id TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE graph_edges (
-                id TEXT PRIMARY KEY,
-                source_id TEXT NOT NULL REFERENCES graph_nodes(id),
-                target_id TEXT NOT NULL REFERENCES graph_nodes(id),
-                type TEXT NOT NULL,
-                data TEXT,
-                weight REAL DEFAULT 1.0,
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-            CREATE INDEX idx_ge_source ON graph_edges(source_id);
-            CREATE INDEX idx_ge_target ON graph_edges(target_id);
-            CREATE INDEX idx_ge_type ON graph_edges(type);
-            CREATE INDEX idx_gn_type ON graph_nodes(type);
-            CREATE INDEX idx_gn_source ON graph_nodes(source_id);
-        ";
-        await cmd.ExecuteNonQueryAsync();
     }
 
     [Fact]

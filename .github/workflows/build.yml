@@ -3,6 +3,7 @@ name: Build & Test
 on:
   push:
     branches: [master, main]
+    tags: ['v*']
   pull_request:
     branches: [master, main]
 
@@ -14,12 +15,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0'
-      - name: Restore
-        run: dotnet restore DevBrain.slnx
-      - name: Build
-        run: dotnet build DevBrain.slnx --no-restore
-      - name: Test
-        run: dotnet test DevBrain.slnx --no-build --verbosity minimal
+      - run: dotnet restore DevBrain.slnx
+      - run: dotnet build DevBrain.slnx --no-restore
+      - run: dotnet test DevBrain.slnx --no-build --verbosity minimal
 
   dashboard:
     runs-on: ubuntu-latest
@@ -28,10 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install dependencies
-        run: cd dashboard && npm ci
-      - name: Build dashboard
-        run: cd dashboard && npm run build
+      - run: cd dashboard && npm ci
+      - run: cd dashboard && npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard-dist
@@ -44,13 +40,22 @@ jobs:
         include:
           - os: windows-latest
             rid: win-x64
-            ext: .exe
+            archive: zip
+          - os: windows-latest
+            rid: win-arm64
+            archive: zip
           - os: ubuntu-latest
             rid: linux-x64
-            ext: ''
+            archive: tar.gz
+          - os: ubuntu-latest
+            rid: linux-arm64
+            archive: tar.gz
+          - os: macos-latest
+            rid: osx-x64
+            archive: tar.gz
           - os: macos-latest
             rid: osx-arm64
-            ext: ''
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -61,13 +66,81 @@ jobs:
         with:
           name: dashboard-dist
           path: src/DevBrain.Api/wwwroot/
+
       - name: Publish Daemon
-        run: dotnet publish src/DevBrain.Api -c Release -r ${{ matrix.rid }} -o out/daemon/
+        run: >
+          dotnet publish src/DevBrain.Api -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o out/stage/
+
       - name: Publish CLI
-        run: dotnet publish src/DevBrain.Cli -c Release -r ${{ matrix.rid }} -o out/cli/
+        run: >
+          dotnet publish src/DevBrain.Cli -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o out/cli-stage/
+
+      # Rename binaries to clean names
+      - name: Stage release (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p out/release
+          cp out/stage/DevBrain.Api out/release/devbrain-daemon
+          cp out/cli-stage/DevBrain.Cli out/release/devbrain
+          cp LICENSE out/release/ 2>/dev/null || echo "MIT License" > out/release/LICENSE
+          chmod +x out/release/devbrain-daemon out/release/devbrain
+
+      - name: Stage release (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p out/release
+          cp out/stage/DevBrain.Api.exe out/release/devbrain-daemon.exe
+          cp out/cli-stage/DevBrain.Cli.exe out/release/devbrain.exe
+          cp LICENSE out/release/ 2>/dev/null || echo "MIT License" > out/release/LICENSE
+
+      # Package
+      - name: Create archive (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd out/release
+          tar -czf ../devbrain-${{ matrix.rid }}.tar.gz .
+
+      - name: Create archive (zip)
+        if: matrix.archive == 'zip'
+        shell: bash
+        run: |
+          cd out/release
+          7z a ../devbrain-${{ matrix.rid }}.zip . || zip -r ../devbrain-${{ matrix.rid }}.zip .
+
       - uses: actions/upload-artifact@v4
         with:
           name: devbrain-${{ matrix.rid }}
-          path: |
-            out/daemon/
-            out/cli/
+          path: out/devbrain-${{ matrix.rid }}.*
+
+  # Create GitHub Release on tag push
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts/ -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/devbrain-*.tar.gz
+            artifacts/devbrain-*.zip

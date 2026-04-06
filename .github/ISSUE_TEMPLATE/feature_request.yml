@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Have an idea for DevBrain? We'd love to hear it. For open-ended discussion, consider using [Discussions](https://github.com/your-org/devbrain/discussions) instead.
+        Have an idea for DevBrain? We'd love to hear it. For open-ended discussion, consider using [Discussions](https://github.com/devbrain-tool/devbrain/discussions) instead.
 
   - type: textarea
     id: problem

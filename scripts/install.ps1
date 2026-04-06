@@ -1,7 +1,7 @@
 # DevBrain installer for Windows — downloads latest release, installs to ~/.devbrain/bin/
 $ErrorActionPreference = "Stop"
 
-$Repo = "your-org/devbrain"  # TODO: update with your actual GitHub org/repo
+$Repo = "devbrain-tool/devbrain"
 $InstallDir = "$env:USERPROFILE\.devbrain\bin"
 
 # Detect architecture

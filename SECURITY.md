@@ -11,7 +11,7 @@
 
 **Do not open a public issue for security vulnerabilities.**
 
-Instead, please email **security@devbrain.dev** (or your preferred contact) with:
+Instead, please [report a vulnerability via GitHub Security Advisories](https://github.com/devbrain-tool/devbrain/security/advisories/new) with:
 
 1. A description of the vulnerability
 2. Steps to reproduce

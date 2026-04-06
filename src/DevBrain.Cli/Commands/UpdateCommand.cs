@@ -34,11 +34,11 @@ public class UpdateCommand : Command
 
             if (OperatingSystem.IsWindows())
             {
-                Console.WriteLine("  irm https://devbrain.dev/install.ps1 | iex");
+                Console.WriteLine("  irm https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/install.ps1 | iex");
             }
             else
             {
-                Console.WriteLine("  curl -fsSL https://devbrain.dev/install.sh | bash");
+                Console.WriteLine("  curl -fsSL https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/install.sh | bash");
             }
         }
 

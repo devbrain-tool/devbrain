@@ -152,7 +152,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
             catch (OperationCanceledException) { break; }
 
             try { await healthMonitor.CheckAll(cts.Token); }
-            catch { /* health check failure is non-fatal */ }
+            catch (Exception) { /* Health check failure is intentionally non-fatal — daemon should keep running */ }
         }
     });
 

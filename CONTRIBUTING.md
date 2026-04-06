@@ -11,7 +11,7 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 There are many ways to contribute to DevBrain:
 
 - **Report bugs** — Found something broken? [Open a bug report](.github/ISSUE_TEMPLATE/bug_report.yml).
-- **Suggest features** — Have an idea? Start a [discussion](https://github.com/your-org/devbrain/discussions).
+- **Suggest features** — Have an idea? Start a [discussion](https://github.com/devbrain-tool/devbrain/discussions).
 - **Submit pull requests** — Fix a bug, improve docs, or add a feature.
 - **Improve documentation** — Help others understand the project better.
 - **Review pull requests** — Provide feedback on open PRs.
@@ -27,7 +27,7 @@ There are many ways to contribute to DevBrain:
 ### Clone and Build
 
 ```bash
-git clone https://github.com/your-org/devbrain.git
+git clone https://github.com/devbrain-tool/devbrain.git
 cd devbrain
 ```
 
@@ -60,7 +60,7 @@ npm test
 
 ## Project Structure
 
-DevBrain is organized as a .NET solution with a React dashboard. For a detailed architectural overview, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+DevBrain is organized as a .NET solution with a React dashboard. For a detailed architectural overview, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 A brief overview:
 
@@ -141,15 +141,15 @@ Use the [bug report issue template](.github/ISSUE_TEMPLATE/bug_report.yml). Plea
 
 ## Suggesting Features
 
-Feature suggestions should be posted as [GitHub Discussions](https://github.com/your-org/devbrain/discussions) rather than issues. This allows the community to discuss and refine ideas before they become actionable work items.
+Feature suggestions should be posted as [GitHub Discussions](https://github.com/devbrain-tool/devbrain/discussions) rather than issues. This allows the community to discuss and refine ideas before they become actionable work items.
 
 ## First-Time Contributors
 
-New to DevBrain? Look for issues labeled [`good first issue`](https://github.com/your-org/devbrain/labels/good%20first%20issue). These are specifically curated to be approachable for newcomers and include enough context to get started.
+New to DevBrain? Look for issues labeled [`good first issue`](https://github.com/devbrain-tool/devbrain/labels/good%20first%20issue). These are specifically curated to be approachable for newcomers and include enough context to get started.
 
 ## Getting Help
 
 If you have questions about contributing, using DevBrain, or anything else:
 
-- **Use [GitHub Discussions](https://github.com/your-org/devbrain/discussions)** — this is the best place for questions and general conversation.
+- **Use [GitHub Discussions](https://github.com/devbrain-tool/devbrain/discussions)** — this is the best place for questions and general conversation.
 - **Do not open issues for questions** — issues are reserved for actionable bug reports and tracked work.

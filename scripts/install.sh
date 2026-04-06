@@ -2,7 +2,7 @@
 # DevBrain installer — detects platform, downloads latest release, installs to ~/.devbrain/bin/
 set -e
 
-REPO="your-org/devbrain"  # TODO: update with your actual GitHub org/repo
+REPO="devbrain-tool/devbrain"
 INSTALL_DIR="$HOME/.devbrain/bin"
 
 # Detect platform

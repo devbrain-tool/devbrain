@@ -2,9 +2,9 @@
 
 **A developer's second brain that passively captures what you do, understands why you did it, and proactively tells you what you need to know.**
 
-[![Build](https://img.shields.io/github/actions/workflow/status/devbrain/devbrain/ci.yml?branch=main&style=flat-square)](https://github.com/devbrain/devbrain/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/devbrain-tool/devbrain/build.yml?branch=main&style=flat-square)](https://github.com/devbrain-tool/devbrain/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/devbrain/devbrain?style=flat-square)](https://github.com/devbrain/devbrain/releases)
+[![Release](https://img.shields.io/github/v/release/devbrain-tool/devbrain?style=flat-square)](https://github.com/devbrain-tool/devbrain/releases)
 [![.NET](https://img.shields.io/badge/.NET-9+-512BD4?style=flat-square)](https://dotnet.microsoft.com)
 
 ---
@@ -29,7 +29,7 @@ Everything stays on your machine. No telemetry. No cloud sync. Your data is your
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/devbrain/devbrain/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/install.sh | bash
 
 # Start the daemon
 devbrain start
@@ -51,7 +51,7 @@ AI Sessions ──> Capture Pipeline ──> SQLite + Knowledge Graph
 
 DevBrain runs as two binaries:
 
-- **Daemon** (`devbrain-api`) — background process hosting the capture pipeline, intelligence agents, storage, and web dashboard.
+- **Daemon** (`devbrain-daemon`) — background process hosting the capture pipeline, intelligence agents, storage, and web dashboard.
 - **CLI** (`devbrain`) — thin HTTP client that talks to the daemon. Commands feel instant because the CLI doesn't initialize storage or agents.
 
 The capture pipeline processes events through five stages: **Normalize** (schema), **Enrich** (project/branch/thread), **Tag** (classify via local LLM), **Privacy Filter** (redact secrets), and **Write** (persist to SQLite + index to LanceDB). Intelligence agents then run on schedules or in response to events, building the knowledge graph and generating briefings.
@@ -93,18 +93,18 @@ The capture pipeline processes events through five stages: **Normalize** (schema
 ### Linux / macOS (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/devbrain/devbrain/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/install.sh | bash
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/devbrain/devbrain/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/devbrain-tool/devbrain/main/scripts/install.ps1 | iex
 ```
 
 ### Manual
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/devbrain/devbrain/releases). DevBrain ships as Native AOT binaries — no .NET runtime required.
+Download the latest release for your platform from [GitHub Releases](https://github.com/devbrain-tool/devbrain/releases). DevBrain ships as Native AOT binaries — no .NET runtime required.
 
 | Platform | Binary |
 |---|---|
@@ -120,7 +120,7 @@ Extract and add the directory to your `PATH`.
 ### Build from Source
 
 ```bash
-git clone https://github.com/devbrain/devbrain.git
+git clone https://github.com/devbrain-tool/devbrain.git
 cd devbrain
 dotnet build
 dotnet run --project src/DevBrain.Api    # Start the daemon
@@ -155,7 +155,7 @@ compression_after_days = 30
 
 Run `devbrain config` to view all current settings, or `devbrain config set <key> <value>` to change individual values. Most settings are hot-reloaded — no daemon restart required.
 
-For the full configuration reference, see [docs/configuration.md](docs/configuration.md).
+For the full configuration reference, see the Configuration section above.
 
 ## Privacy & Security
 
@@ -186,7 +186,7 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines 
 - Code style and conventions
 - Submitting pull requests
 
-If you're looking for a place to start, check issues labeled [`good first issue`](https://github.com/devbrain/devbrain/labels/good%20first%20issue).
+If you're looking for a place to start, check issues labeled [`good first issue`](https://github.com/devbrain-tool/devbrain/labels/good%20first%20issue).
 
 ## License
 

@@ -88,8 +88,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p out/release
-          cp out/stage/DevBrain.Api out/release/devbrain-daemon
-          cp out/cli-stage/DevBrain.Cli out/release/devbrain
+          # Copy all publish output (native libs like e_sqlite3 ship alongside the exe)
+          cp out/stage/* out/release/ 2>/dev/null || true
+          cp out/cli-stage/* out/release/ 2>/dev/null || true
+          # Rename main binaries to clean names
+          mv out/release/DevBrain.Api out/release/devbrain-daemon
+          mv out/release/DevBrain.Cli out/release/devbrain
+          # Remove leftover pdb/deps files that aren't needed at runtime
+          rm -f out/release/*.pdb out/release/*.deps.json out/release/*.runtimeconfig.json
           cp LICENSE out/release/
           chmod +x out/release/devbrain-daemon out/release/devbrain
 
@@ -98,8 +104,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p out/release
-          cp out/stage/DevBrain.Api.exe out/release/devbrain-daemon.exe
-          cp out/cli-stage/DevBrain.Cli.exe out/release/devbrain.exe
+          # Copy all publish output (native libs like e_sqlite3.dll ship alongside the exe)
+          cp out/stage/* out/release/ 2>/dev/null || true
+          cp out/cli-stage/* out/release/ 2>/dev/null || true
+          # Rename main binaries to clean names
+          mv out/release/DevBrain.Api.exe out/release/devbrain-daemon.exe
+          mv out/release/DevBrain.Cli.exe out/release/devbrain.exe
+          # Remove leftover pdb/deps files that aren't needed at runtime
+          rm -f out/release/*.pdb out/release/*.deps.json out/release/*.runtimeconfig.json
           cp LICENSE out/release/
 
       # Package

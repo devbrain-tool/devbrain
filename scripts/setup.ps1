@@ -13,7 +13,7 @@ function Write-Warn($msg)  { Write-Host "[devbrain] $msg" -ForegroundColor Yello
 
 Write-Host ""
 Write-Host "  DevBrain Setup" -ForegroundColor Cyan
-Write-Host "  Your developer's second brain" -ForegroundColor Cyan
+Write-Host "  A developer's second brain" -ForegroundColor Cyan
 Write-Host ""
 
 # -- Step 1: Detect platform ------------------------------------------------
@@ -49,14 +49,18 @@ if ($devbrainCmd) {
     Expand-Archive -Path $TmpFile -DestinationPath $InstallDir -Force
     Remove-Item $TmpFile
 
-    # Add to PATH
+    # Add to PATH (persistent)
     $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
     if ($UserPath -notlike "*\.devbrain\bin*") {
         [Environment]::SetEnvironmentVariable("PATH", "$InstallDir;$UserPath", "User")
-        $env:PATH = "$InstallDir;$env:PATH"
     }
 
     Write-Ok "DevBrain $Version installed to $InstallDir"
+}
+
+# Ensure current session PATH includes .devbrain\bin (even on re-runs)
+if ($env:PATH -notlike "*\.devbrain\bin*") {
+    $env:PATH = "$InstallDir;$env:PATH"
 }
 
 # -- Step 3: Create default config -----------------------------------------
@@ -112,21 +116,48 @@ if ($healthCheck) {
     Write-Ok "Daemon already running"
 } else {
     Write-Info "Starting DevBrain daemon..."
-    try {
-        & devbrain start 2>$null
-    } catch {
-        $daemon = "$InstallDir\devbrain-daemon.exe"
-        if (Test-Path $daemon) {
-            Start-Process -FilePath $daemon -WindowStyle Hidden
-            Start-Sleep -Seconds 3
-        }
+
+    # Ensure logs directory exists before daemon tries to write
+    $LogsDir = "$DataDir\logs"
+    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
+
+    $daemon = "$InstallDir\devbrain-daemon.exe"
+    $started = $false
+
+    # Try CLI first (preferred — it manages the daemon lifecycle)
+    $devbrainCli = Get-Command devbrain -ErrorAction SilentlyContinue
+    if ($devbrainCli) {
+        try {
+            & devbrain start 2>$null
+            $started = $true
+        } catch {}
     }
 
-    $healthCheck = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/health" -ErrorAction SilentlyContinue } catch { $null }
+    # Fallback: launch daemon exe directly with log capture
+    if (-not $started -and (Test-Path $daemon)) {
+        $logFile = "$LogsDir\daemon.log"
+        Start-Process -FilePath $daemon -WindowStyle Hidden `
+            -RedirectStandardOutput $logFile `
+            -RedirectStandardError "$LogsDir\daemon-error.log"
+    }
+
+    # Wait up to 10 seconds for the daemon to become healthy
+    $retries = 5
+    $healthCheck = $null
+    for ($i = 0; $i -lt $retries; $i++) {
+        Start-Sleep -Seconds 2
+        $healthCheck = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/health" -ErrorAction SilentlyContinue } catch { $null }
+        if ($healthCheck) { break }
+    }
+
     if ($healthCheck) {
         Write-Ok "Daemon running on port $DaemonPort"
     } else {
         Write-Warn "Daemon may still be starting. Check: devbrain status"
+        if (Test-Path "$LogsDir\daemon-error.log") {
+            $errContent = Get-Content "$LogsDir\daemon-error.log" -Raw -ErrorAction SilentlyContinue
+            if ($errContent) { Write-Warn "Daemon stderr: $errContent" }
+        }
     }
 }
 

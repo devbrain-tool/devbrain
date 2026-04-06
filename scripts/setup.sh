@@ -23,7 +23,7 @@ err()   { echo -e "${RED}[devbrain]${NC} $1"; }
 echo ""
 echo -e "${CYAN}╭─────────────────────────────────────────╮${NC}"
 echo -e "${CYAN}│         DevBrain Setup                   │${NC}"
-echo -e "${CYAN}│   Your developer's second brain          │${NC}"
+echo -e "${CYAN}│   A developer's second brain             │${NC}"
 echo -e "${CYAN}╰─────────────────────────────────────────╯${NC}"
 echo ""
 

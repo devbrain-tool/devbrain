@@ -140,6 +140,7 @@ app.MapAdminEndpoints();
 app.MapThreadEndpoints();
 app.MapDeadEndEndpoints();
 app.MapContextEndpoints();
+app.MapDatabaseEndpoints();
 
 // Dashboard SPA fallback
 app.MapFallbackToFile("index.html");

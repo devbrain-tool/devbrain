@@ -79,7 +79,17 @@ var agents = new IIntelligenceAgent[]
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 
 builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton<IObservationStore>(observationStore);

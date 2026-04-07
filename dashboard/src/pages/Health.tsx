@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { api, type HealthStatus } from '../api/client';
+import { useNavigate } from 'react-router-dom';
+import { api, type HealthStatus, type SetupStatus } from '../api/client';
 
 export default function Health() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api.health().then(setHealth).catch((e) => setError(String(e)));
+    api.setup.status().then(setSetup).catch(() => {});
   }, []);
 
   if (error) return <div style={styles.error}>Error: {error}</div>;
@@ -31,6 +35,39 @@ export default function Health() {
           <StatusCard label="Observations" value={String(health.storage.totalObservations)} />
         </div>
       </section>
+
+      {setup && (
+        <section style={styles.section}>
+          <h2>Integrations</h2>
+          <div style={styles.grid}>
+            <div
+              style={{ ...styles.card, cursor: 'pointer' }}
+              onClick={() => navigate('/setup')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && navigate('/setup')}
+            >
+              <div style={styles.cardLabel}>
+                {setup.summary.pass + setup.summary.warn}/{setup.checks.length} configured
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                {(['Claude Code', 'GitHub Copilot', 'LLM'] as const).map((cat) => {
+                  const checks = setup.checks.filter((c) => c.category === cat);
+                  const hasFail = checks.some((c) => c.status === 'fail');
+                  const hasWarn = checks.some((c) => c.status === 'warn');
+                  const color = hasFail ? '#ef4444' : hasWarn ? '#eab308' : '#22c55e';
+                  const label = cat === 'Claude Code' ? 'Claude' : cat === 'GitHub Copilot' ? 'Copilot' : 'Ollama';
+                  return (
+                    <span key={cat} style={{ fontSize: '0.85rem', color }}>
+                      {'\u25CF'} {label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section style={styles.section}>
         <h2>LLM Providers</h2>

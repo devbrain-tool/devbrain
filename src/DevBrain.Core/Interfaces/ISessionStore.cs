@@ -8,4 +8,5 @@ public interface ISessionStore
     Task<SessionSummary?> GetBySessionId(string sessionId);
     Task<IReadOnlyList<SessionSummary>> GetAll(int limit = 50);
     Task<SessionSummary?> GetLatest();
+    Task<IReadOnlyList<SessionSummary>> GetByDateRange(DateTime after, DateTime before);
 }

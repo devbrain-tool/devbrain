@@ -63,7 +63,7 @@ public class StorytellerAgent : IIntelligenceAgent
             // Dead ends in this session
             var sessionFiles = observations
                 .SelectMany(o => o.FilesInvolved)
-                .Distinct()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var deadEnds = sessionFiles.Count > 0
                 ? await ctx.DeadEnds.FindByFiles(sessionFiles)
@@ -71,7 +71,7 @@ public class StorytellerAgent : IIntelligenceAgent
 
             // Build LLM prompt
             var eventLines = observations.Select(o =>
-                $"[{o.EventType}] {o.Timestamp:HH:mm}: {o.Summary ?? o.RawContent[..Math.Min(o.RawContent.Length, 100)]}"
+                $"[{o.EventType}] {o.Timestamp:HH:mm}: {Truncate(o.Summary ?? o.RawContent, 100)}"
             );
 
             var prompt = Prompts.Fill(Prompts.StorytellerNarrative,
@@ -142,6 +142,13 @@ public class StorytellerAgent : IIntelligenceAgent
         var start = observations[0].Timestamp;
         var end = observations[^1].Timestamp;
 
+        // Handle sessions shorter than one window (including same-timestamp)
+        if (end - start < windowSize)
+        {
+            phases.Add(ClassifyPhase(observations.ToList()));
+            return phases;
+        }
+
         for (var windowStart = start; windowStart < end; windowStart += windowSize)
         {
             var windowEnd = windowStart + windowSize;
@@ -183,18 +190,28 @@ public class StorytellerAgent : IIntelligenceAgent
 
             // Decision events are turning points
             if (obs.EventType == EventType.Decision)
-                points.Add($"Decision: {obs.Summary ?? obs.RawContent[..Math.Min(obs.RawContent.Length, 60)]}");
+                points.Add($"Decision: {Truncate(obs.Summary ?? obs.RawContent, 60)}");
 
-            // Error followed by 10+ min of no errors = resolution
+            // Error followed by continued non-error activity = likely resolved
             if (obs.EventType == EventType.Error)
             {
                 var nextError = observations.Skip(i + 1)
                     .FirstOrDefault(o => o.EventType == EventType.Error);
-                if (nextError is null || (nextError.Timestamp - obs.Timestamp).TotalMinutes >= 10)
-                    points.Add($"Error resolved at {obs.Timestamp:HH:mm}");
+                var hasSubsequentActivity = observations.Skip(i + 1)
+                    .Any(o => o.EventType != EventType.Error);
+
+                if (hasSubsequentActivity &&
+                    (nextError is null || (nextError.Timestamp - obs.Timestamp).TotalMinutes >= 10))
+                    points.Add($"Error at {obs.Timestamp:HH:mm}, no recurrence after");
             }
         }
 
         return points;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
     }
 }

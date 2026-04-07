@@ -17,7 +17,7 @@ public static class SessionEndpoints
         });
 
         // Get session story by session ID
-        group.MapGet("/{id}/story", async (string id, ISessionStore sessionStore) =>
+        group.MapGet("/{sessionId}/story", async (string sessionId, ISessionStore sessionStore) =>
         {
             var summary = await sessionStore.GetBySessionId(id);
             return summary is not null
@@ -26,33 +26,35 @@ public static class SessionEndpoints
         });
 
         // Get session detail with observations
-        group.MapGet("/{id}", async (string id,
+        group.MapGet("/{sessionId}", async (string sessionId,
             IObservationStore obsStore, ISessionStore sessionStore) =>
         {
-            var observations = await obsStore.GetSessionObservations(id);
-            var story = await sessionStore.GetBySessionId(id);
+            var observations = await obsStore.GetSessionObservations(sessionId);
+            var story = await sessionStore.GetBySessionId(sessionId);
 
             return Results.Ok(new
             {
-                sessionId = id,
+                sessionId,
                 observations,
                 story
             });
         });
 
-        // Trigger story generation on demand (fire-and-forget via agent)
-        group.MapPost("/{id}/story", async (string id,
+        // Validate whether a session can have a story generated.
+        // Actual generation runs via StorytellerAgent on idle schedule.
+        // Known limitation: no way to trigger immediate generation (v1).
+        group.MapPost("/{sessionId}/story", async (string sessionId,
             IObservationStore obsStore, ISessionStore sessionStore) =>
         {
-            var existing = await sessionStore.GetBySessionId(id);
+            var existing = await sessionStore.GetBySessionId(sessionId);
             if (existing is not null)
                 return Results.Ok(new { status = "already_generated", story = existing });
 
-            var observations = await obsStore.GetSessionObservations(id);
+            var observations = await obsStore.GetSessionObservations(sessionId);
             if (observations.Count < 3)
                 return Results.BadRequest(new { error = "Session has fewer than 3 observations" });
 
-            return Results.Accepted(new { status = "queued", message = "Story generation will run on next agent cycle" });
+            return Results.Ok(new { status = "pending", message = "Session is eligible. Story will be generated when the storyteller agent runs next." });
         });
     }
 }

@@ -61,35 +61,37 @@ export default function Sessions() {
               </span>
             </div>
 
-            {/* Phase bar */}
+            {/* Phase bar + labels */}
             {session.phases.length > 0 && (
-              <div style={styles.phaseBar}>
-                {session.phases.map((phase, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      ...styles.phaseSegment,
-                      background: phaseColors[phase] || '#6b7280',
-                      flex: 1,
-                    }}
-                    title={phase}
-                  />
-                ))}
-              </div>
+              <>
+                <div style={styles.phaseBar}>
+                  {session.phases.map((phase, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...styles.phaseSegment,
+                        background: phaseColors[phase] || '#6b7280',
+                        flex: 1,
+                      }}
+                      title={phase}
+                    />
+                  ))}
+                </div>
+                <div style={styles.phaseLabels}>
+                  {session.phases.map((phase, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        ...styles.phaseLabel,
+                        color: phaseColors[phase] || '#6b7280',
+                      }}
+                    >
+                      {phase}
+                    </span>
+                  ))}
+                </div>
+              </>
             )}
-            <div style={styles.phaseLabels}>
-              {session.phases.map((phase, i) => (
-                <span
-                  key={i}
-                  style={{
-                    ...styles.phaseLabel,
-                    color: phaseColors[phase] || '#6b7280',
-                  }}
-                >
-                  {phase}
-                </span>
-              ))}
-            </div>
 
             <div style={styles.outcome}>{session.outcome}</div>
 

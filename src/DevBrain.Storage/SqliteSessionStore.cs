@@ -19,7 +19,7 @@ public class SqliteSessionStore : ISessionStore
     {
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO session_summaries (id, session_id, narrative, outcome,
+            INSERT OR IGNORE INTO session_summaries (id, session_id, narrative, outcome,
                 duration_seconds, observation_count, files_touched, dead_ends_hit,
                 phases, created_at)
             VALUES (@id, @sessionId, @narrative, @outcome,
@@ -76,6 +76,20 @@ public class SqliteSessionStore : ISessionStore
         if (await reader.ReadAsync())
             return MapSummary(reader);
         return null;
+    }
+
+    public async Task<IReadOnlyList<SessionSummary>> GetByDateRange(DateTime after, DateTime before)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM session_summaries WHERE created_at > @after AND created_at < @before ORDER BY created_at DESC";
+        cmd.Parameters.AddWithValue("@after", after.ToString("o"));
+        cmd.Parameters.AddWithValue("@before", before.ToString("o"));
+
+        var results = new List<SessionSummary>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(MapSummary(reader));
+        return results;
     }
 
     private static SessionSummary MapSummary(SqliteDataReader reader) => new()

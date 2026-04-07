@@ -144,6 +144,68 @@ public class StorytellerAgentTests : IAsyncLifetime
     }
 
     [Fact]
+    public void DetectPhases_SingleWindowSession()
+    {
+        var now = DateTime.UtcNow;
+        var observations = new List<Observation>
+        {
+            MakeObs("1", now, EventType.FileChange),
+            MakeObs("2", now.AddMinutes(2), EventType.FileChange),
+            MakeObs("3", now.AddMinutes(5), EventType.Error),
+        };
+
+        var phases = StorytellerAgent.DetectPhases(observations);
+
+        Assert.NotEmpty(phases);
+    }
+
+    [Fact]
+    public void DetectPhases_SameTimestamp_ReturnsOnePhase()
+    {
+        var now = DateTime.UtcNow;
+        var observations = new List<Observation>
+        {
+            MakeObs("1", now, EventType.Conversation),
+            MakeObs("2", now, EventType.Conversation),
+            MakeObs("3", now, EventType.Conversation),
+        };
+
+        var phases = StorytellerAgent.DetectPhases(observations);
+
+        Assert.Single(phases);
+        Assert.Equal("Exploration", phases[0]);
+    }
+
+    [Fact]
+    public void DetectPhases_EmptyObservations_ReturnsEmpty()
+    {
+        var phases = StorytellerAgent.DetectPhases([]);
+        Assert.Empty(phases);
+    }
+
+    [Fact]
+    public async Task Run_SkipsWhenLlmFails()
+    {
+        var now = DateTime.UtcNow;
+        for (int i = 0; i < 4; i++)
+        {
+            await _obsStore.Add(new Observation
+            {
+                Id = $"obs-{i}", SessionId = "session-fail", ThreadId = "t1",
+                Timestamp = now.AddMinutes(-20 + i * 5), Project = "proj",
+                EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = $"Activity {i}"
+            });
+        }
+
+        var ctx = CreateContext(new FailingLlmService());
+        var results = await _agent.Run(ctx, CancellationToken.None);
+
+        Assert.Empty(results);
+        Assert.Null(await _sessionStore.GetBySessionId("session-fail"));
+    }
+
+    [Fact]
     public void DetectTurningPoints_FindsDecisionsAndResolutions()
     {
         var now = DateTime.UtcNow;
@@ -158,7 +220,7 @@ public class StorytellerAgentTests : IAsyncLifetime
         var points = StorytellerAgent.DetectTurningPoints(observations);
 
         Assert.Contains(points, p => p.Contains("Decision"));
-        Assert.Contains(points, p => p.Contains("resolved"));
+        Assert.Contains(points, p => p.Contains("no recurrence"));
     }
 
     private static Observation MakeObs(string id, DateTime timestamp, EventType type,
@@ -186,6 +248,18 @@ public class StorytellerAgentTests : IAsyncLifetime
                           "They implemented several changes across multiple files.\n" +
                           "Session outcome: Successfully completed the task."
             });
+        public Task<float[]> Embed(string text, CancellationToken ct = default)
+            => Task.FromResult(Array.Empty<float>());
+    }
+
+    private class FailingLlmService : ILlmService
+    {
+        public bool IsLocalAvailable => false;
+        public bool IsCloudAvailable => false;
+        public int CloudRequestsToday => 0;
+        public int QueueDepth => 0;
+        public Task<LlmResult> Submit(LlmTask task, CancellationToken ct = default)
+            => Task.FromResult(new LlmResult { TaskId = task.Id, Success = false, Content = null });
         public Task<float[]> Embed(string text, CancellationToken ct = default)
             => Task.FromResult(Array.Empty<float>());
     }

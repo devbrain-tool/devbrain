@@ -50,16 +50,14 @@ public class StoryCommand : Command
 
             var narrative = json.GetPropertyOrDefault("narrative", "");
             var outcome = json.GetPropertyOrDefault("outcome", "");
-            var duration = json.TryGetProperty("duration", out var d)
-                ? d.ToString()
-                : json.GetPropertyOrDefault("durationSeconds", "?") + "s";
+            var duration = json.TryGetProperty("duration", out var d) ? d.ToString() : "?";
             var obsCount = json.TryGetProperty("observationCount", out var oc) ? oc.GetInt32() : 0;
             var filesCount = json.TryGetProperty("filesTouched", out var fc) ? fc.GetInt32() : 0;
             var deadEnds = json.TryGetProperty("deadEndsHit", out var de) ? de.GetInt32() : 0;
 
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine($"  Session Story");
+            Console.WriteLine($"  Session Story ({duration})");
             Console.ResetColor();
             Console.ForegroundColor = ConsoleColor.DarkGray;
             Console.WriteLine($"  {obsCount} observations | {filesCount} files | {deadEnds} dead ends");
@@ -75,9 +73,13 @@ public class StoryCommand : Command
             Console.WriteLine(outcome);
             Console.WriteLine();
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             ConsoleFormatter.PrintWarning("No story available for this session.");
+        }
+        catch (HttpRequestException ex)
+        {
+            ConsoleFormatter.PrintError($"API error: {ex.StatusCode} - {ex.Message}");
         }
         catch (Exception ex)
         {

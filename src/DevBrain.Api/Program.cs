@@ -38,6 +38,8 @@ var readOnlyDb = new ReadOnlyDb(readOnlyConnection);
 var observationStore = new SqliteObservationStore(connection);
 var graphStore = new SqliteGraphStore(connection);
 var deadEndStore = new SqliteDeadEndStore(connection);
+var alertStore = new SqliteAlertStore(connection);
+var alertChannel = new DevBrain.Api.Services.AlertChannel();
 
 // ── Vector store (placeholder) ───────────────────────────────────────────────
 var vectorStore = new NullVectorStore();
@@ -83,7 +85,8 @@ var agents = new IIntelligenceAgent[]
     new DeadEndAgent(),
     new BriefingAgent(),
     new CompressionAgent(),
-    new DecisionChainAgent()
+    new DecisionChainAgent(),
+    new DejaVuAgent(alertStore, alertChannel)
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
@@ -104,6 +107,9 @@ builder.Services.AddSingleton<IObservationStore>(observationStore);
 builder.Services.AddSingleton<IGraphStore>(graphStore);
 builder.Services.AddSingleton<IVectorStore>(vectorStore);
 builder.Services.AddSingleton<IDeadEndStore>(deadEndStore);
+builder.Services.AddSingleton<IAlertStore>(alertStore);
+builder.Services.AddSingleton(alertChannel);
+builder.Services.AddSingleton<IAlertSink>(alertChannel);
 builder.Services.AddSingleton<ILlmService>(llmService);
 builder.Services.AddSingleton(llmService); // concrete type for ResetDailyCounter
 builder.Services.AddSingleton(eventBus);
@@ -144,6 +150,7 @@ app.MapSettingsEndpoints();
 app.MapAdminEndpoints();
 app.MapThreadEndpoints();
 app.MapDeadEndEndpoints();
+app.MapAlertEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
 app.MapSetupEndpoints();

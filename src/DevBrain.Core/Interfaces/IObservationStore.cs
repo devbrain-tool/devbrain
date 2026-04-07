@@ -27,4 +27,5 @@ public interface IObservationStore
     Task<long> GetDatabaseSizeBytes();
     Task DeleteByProject(string project);
     Task DeleteBefore(DateTime before);
+    Task<IReadOnlyList<Observation>> GetSessionObservations(string sessionId, int limit = 500);
 }

@@ -8,6 +8,7 @@ public record AgentContext(
     IGraphStore Graph,
     IVectorStore Vectors,
     ILlmService Llm,
+    IDeadEndStore DeadEnds,
     Settings Settings
 );
 

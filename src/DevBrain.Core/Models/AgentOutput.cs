@@ -6,7 +6,12 @@ public enum AgentOutputType
     BriefingGenerated,
     EdgeCreated,
     ThreadCompressed,
-    PatternDetected
+    PatternDetected,
+    AlertFired,
+    StoryGenerated,
+    DecisionChainBuilt,
+    GrowthReportGenerated,
+    MilestoneAchieved
 }
 
 public record AgentOutput(AgentOutputType Type, string Content, object? Data = null);

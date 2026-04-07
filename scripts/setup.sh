@@ -427,19 +427,100 @@ else
   check_fail "Observation write failed (HTTP $POST_RESULT)"
 fi
 
-# 9.7 — Claude Code hook configured
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
-if [ -f "$CLAUDE_SETTINGS" ] && grep -q "devbrain\|37800" "$CLAUDE_SETTINGS" 2>/dev/null; then
-  check_pass "Claude Code hook configured"
+# 9.7 — Claude Code (deep validation)
+if command -v claude &>/dev/null; then
+  CLAUDE_VER=$(claude --version 2>/dev/null | head -1)
+  check_pass "Claude CLI installed ($CLAUDE_VER)"
 else
-  check_warn "Claude Code hook not detected (manual config may be needed)"
+  check_warn "Claude CLI not found (install: npm install -g @anthropic-ai/claude-code)"
 fi
 
-# 9.8 — Copilot wrappers
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$CLAUDE_SETTINGS" ]; then
+  if python3 -c "import json; json.load(open('$CLAUDE_SETTINGS'))" 2>/dev/null || \
+     node -e "JSON.parse(require('fs').readFileSync('$CLAUDE_SETTINGS','utf8'))" 2>/dev/null; then
+    check_pass "Claude settings.json is valid JSON"
+
+    if grep -q "PostToolUse" "$CLAUDE_SETTINGS" && grep -q "$DAEMON_PORT" "$CLAUDE_SETTINGS"; then
+      check_pass "PostToolUse hook configured for port $DAEMON_PORT"
+    else
+      warn "  PostToolUse hook missing -- attempting auto-fix..."
+      cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.bak" 2>/dev/null
+      cat > "$CLAUDE_SETTINGS" << HOOKJSON
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "curl -s -X POST http://127.0.0.1:$DAEMON_PORT/api/v1/observations -H 'Content-Type: application/json' -d '{\"sessionId\":\"'\\\$CLAUDE_SESSION_ID'\",\"eventType\":\"ToolCall\",\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '\\\$CLAUDE_TOOL_NAME'\",\"project\":\"'\\\$CLAUDE_PROJECT'\"}' >/dev/null 2>&1"
+      }
+    ]
+  }
+}
+HOOKJSON
+      if grep -q "$DAEMON_PORT" "$CLAUDE_SETTINGS"; then
+        check_pass "PostToolUse hook auto-fixed"
+      else
+        check_fail "Could not configure PostToolUse hook"
+      fi
+    fi
+  else
+    cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.bak" 2>/dev/null
+    echo '{"hooks":{}}' > "$CLAUDE_SETTINGS"
+    check_warn "Claude settings.json was invalid -- recreated (backup at .bak)"
+  fi
+else
+  check_warn "Claude settings.json not found (will be created when Claude Code is configured)"
+fi
+
+# Claude round-trip test
+if command -v claude &>/dev/null && [ -f "$CLAUDE_SETTINGS" ] && grep -q "$DAEMON_PORT" "$CLAUDE_SETTINGS"; then
+  RT_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:$DAEMON_PORT/api/v1/observations" \
+    -H "Content-Type: application/json" \
+    -d '{"sessionId":"setup-claude-test","eventType":"Decision","source":"ClaudeCode","rawContent":"Claude setup validation","project":"devbrain-setup-validation"}' 2>/dev/null)
+  if [ "$RT_RESULT" = "201" ]; then
+    sleep 1
+    RT_READ=$(curl -s "http://127.0.0.1:$DAEMON_PORT/api/v1/observations?project=devbrain-setup-validation&limit=1" 2>/dev/null)
+    if echo "$RT_READ" | grep -q "devbrain-setup-validation"; then
+      check_pass "Claude capture round-trip verified"
+    else
+      check_fail "Claude round-trip: written but not readable"
+    fi
+  else
+    check_fail "Claude round-trip: POST failed (HTTP $RT_RESULT)"
+  fi
+fi
+
+# 9.8 — GitHub Copilot (deep validation)
+if command -v gh &>/dev/null; then
+  GH_VER=$(gh --version 2>/dev/null | head -1)
+  check_pass "GitHub CLI installed ($GH_VER)"
+
+  if gh copilot --help &>/dev/null 2>&1; then
+    check_pass "gh copilot extension installed"
+  else
+    check_warn "gh copilot extension not installed (run: gh extension install github/gh-copilot)"
+  fi
+else
+  check_warn "GitHub CLI not found (install from https://cli.github.com/)"
+fi
+
 if [ -f "$INSTALL_DIR/ghcs" ] && [ -x "$INSTALL_DIR/ghcs" ]; then
   check_pass "Copilot wrapper 'ghcs' installed"
 else
   check_warn "Copilot wrapper 'ghcs' not found"
+fi
+
+# Copilot round-trip test
+if [ -f "$INSTALL_DIR/ghcs" ]; then
+  CRT_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:$DAEMON_PORT/api/v1/observations" \
+    -H "Content-Type: application/json" \
+    -d '{"sessionId":"setup-copilot-test","eventType":"Conversation","source":"VSCode","rawContent":"Copilot setup validation","project":"devbrain-setup-validation"}' 2>/dev/null)
+  if [ "$CRT_RESULT" = "201" ]; then
+    check_pass "Copilot capture round-trip verified"
+  else
+    check_fail "Copilot round-trip: POST failed (HTTP $CRT_RESULT)"
+  fi
 fi
 
 # 9.9 — Ollama + model

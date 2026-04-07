@@ -1,6 +1,7 @@
 using DevBrain.Agents;
 using DevBrain.Api;
 using DevBrain.Api.Endpoints;
+using DevBrain.Api.Setup;
 using DevBrain.Capture;
 using DevBrain.Capture.Pipeline;
 using DevBrain.Core;
@@ -107,6 +108,7 @@ builder.Services.AddSingleton(agentContext);
 builder.Services.AddSingleton(healthMonitor);
 builder.Services.AddSingleton(connection); // for raw SQL queries in endpoints
 builder.Services.AddSingleton(readOnlyDb);
+builder.Services.AddSingleton<SetupValidator>();
 
 foreach (var agent in agents)
 {
@@ -141,6 +143,7 @@ app.MapThreadEndpoints();
 app.MapDeadEndEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
+app.MapSetupEndpoints();
 
 // Dashboard SPA fallback
 app.MapFallbackToFile("index.html");

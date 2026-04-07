@@ -40,6 +40,7 @@ var graphStore = new SqliteGraphStore(connection);
 var deadEndStore = new SqliteDeadEndStore(connection);
 var alertStore = new SqliteAlertStore(connection);
 var sessionStore = new SqliteSessionStore(connection);
+var growthStore = new SqliteGrowthStore(connection);
 var alertChannel = new DevBrain.Api.Services.AlertChannel();
 
 // ── Vector store (placeholder) ───────────────────────────────────────────────
@@ -88,7 +89,8 @@ var agents = new IIntelligenceAgent[]
     new CompressionAgent(),
     new DecisionChainAgent(),
     new DejaVuAgent(alertStore, alertChannel),
-    new StorytellerAgent(sessionStore)
+    new StorytellerAgent(sessionStore),
+    new GrowthAgent(growthStore)
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
@@ -113,6 +115,7 @@ builder.Services.AddSingleton<IAlertStore>(alertStore);
 builder.Services.AddSingleton(alertChannel);
 builder.Services.AddSingleton<IAlertSink>(alertChannel);
 builder.Services.AddSingleton<ISessionStore>(sessionStore);
+builder.Services.AddSingleton<IGrowthStore>(growthStore);
 var chainBuilder = new DecisionChainBuilder(graphStore, observationStore);
 builder.Services.AddSingleton(chainBuilder);
 builder.Services.AddSingleton(new BlastRadiusCalculator(graphStore, deadEndStore, chainBuilder));
@@ -160,6 +163,7 @@ app.MapAlertEndpoints();
 app.MapSessionEndpoints();
 app.MapReplayEndpoints();
 app.MapBlastRadiusEndpoints();
+app.MapGrowthEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
 app.MapSetupEndpoints();

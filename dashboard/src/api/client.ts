@@ -245,6 +245,35 @@ export interface SessionSummary {
   createdAt: string;
 }
 
+// Growth Tracker models
+export interface DeveloperMetric {
+  id: string;
+  dimension: string;
+  value: number;
+  periodStart: string;
+  periodEnd: string;
+  createdAt: string;
+}
+
+export interface GrowthMilestone {
+  id: string;
+  type: string;
+  description: string;
+  achievedAt: string;
+  observationId?: string;
+  createdAt: string;
+}
+
+export interface GrowthReport {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  metrics: DeveloperMetric[];
+  milestones: GrowthMilestone[];
+  narrative?: string;
+  generatedAt: string;
+}
+
 // Database explorer types
 export interface DbTableInfo {
   name: string;
@@ -413,6 +442,15 @@ export const api = {
 
   replayDecision: (nodeId: string) =>
     fetchJson<DecisionChain>(`/replay/decision/${encodeURIComponent(nodeId)}`),
+
+  // Growth
+  growth: () => fetchJson<GrowthReport>('/growth'),
+
+  growthHistory: (dimension: string, weeks = 12) =>
+    fetchJson<DeveloperMetric[]>(`/growth/history?dimension=${encodeURIComponent(dimension)}&weeks=${weeks}`),
+
+  growthMilestones: (limit = 50) =>
+    fetchJson<GrowthMilestone[]>(`/growth/milestones?limit=${limit}`),
 
   // Sessions
   sessions: (limit = 50) =>

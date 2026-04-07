@@ -29,6 +29,11 @@ var connection = new SqliteConnection(connStr);
 connection.Open();
 SchemaManager.Initialize(connection);
 
+var readOnlyConnStr = $"Data Source={dbPath};Mode=ReadOnly;Cache=Shared";
+var readOnlyConnection = new SqliteConnection(readOnlyConnStr);
+readOnlyConnection.Open();
+var readOnlyDb = new ReadOnlyDb(readOnlyConnection);
+
 var observationStore = new SqliteObservationStore(connection);
 var graphStore = new SqliteGraphStore(connection);
 
@@ -101,6 +106,7 @@ builder.Services.AddSingleton(eventBus);
 builder.Services.AddSingleton(agentContext);
 builder.Services.AddSingleton(healthMonitor);
 builder.Services.AddSingleton(connection); // for raw SQL queries in endpoints
+builder.Services.AddSingleton(readOnlyDb);
 
 foreach (var agent in agents)
 {
@@ -194,6 +200,7 @@ app.Lifetime.ApplicationStopping.Register(() =>
     if (File.Exists(pidFilePath))
         File.Delete(pidFilePath);
 
+    readOnlyDb.Dispose();
     connection.Close();
     connection.Dispose();
     ollamaHttp.Dispose();

@@ -13,6 +13,7 @@ root.Add(new DashboardCommand());
 root.Add(new ThreadCommand());
 root.Add(new DeadEndsCommand());
 root.Add(new AlertsCommand());
+root.Add(new StoryCommand());
 root.Add(new RelatedCommand());
 root.Add(new AgentsCommand());
 root.Add(new ConfigCommand());

@@ -197,6 +197,20 @@ export interface DejaVuAlert {
   createdAt: string;
 }
 
+// SessionSummary model
+export interface SessionSummary {
+  id: string;
+  sessionId: string;
+  narrative: string;
+  outcome: string;
+  duration: string;
+  observationCount: number;
+  filesTouched: number;
+  deadEndsHit: number;
+  phases: string[];
+  createdAt: string;
+}
+
 // Database explorer types
 export interface DbTableInfo {
   name: string;
@@ -354,6 +368,13 @@ export const api = {
     });
     if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   },
+
+  // Sessions
+  sessions: (limit = 50) =>
+    fetchJson<SessionSummary[]>(`/sessions?limit=${limit}`),
+
+  sessionStory: (id: string) =>
+    fetchJson<SessionSummary>(`/sessions/${encodeURIComponent(id)}/story`),
 
   // Context
   fileContext: (path: string) =>

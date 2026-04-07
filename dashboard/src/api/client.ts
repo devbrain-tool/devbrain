@@ -185,6 +185,18 @@ export interface DeadEnd {
   createdAt: string;
 }
 
+// DejaVuAlert model
+export interface DejaVuAlert {
+  id: string;
+  threadId: string;
+  matchedDeadEndId: string;
+  confidence: number;
+  message: string;
+  strategy: string;
+  dismissed: boolean;
+  createdAt: string;
+}
+
 // Database explorer types
 export interface DbTableInfo {
   name: string;
@@ -329,6 +341,18 @@ export const api = {
     if (params?.project) sp.set('project', params.project);
     const qs = sp.toString();
     return fetchJson<DeadEnd[]>(`/dead-ends${qs ? `?${qs}` : ''}`);
+  },
+
+  // Alerts
+  alerts: () => fetchJson<DejaVuAlert[]>('/alerts'),
+
+  alertsAll: () => fetchJson<DejaVuAlert[]>('/alerts/all'),
+
+  alertDismiss: async (id: string) => {
+    const res = await fetch(`${BASE_URL}/alerts/${encodeURIComponent(id)}/dismiss`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   },
 
   // Context

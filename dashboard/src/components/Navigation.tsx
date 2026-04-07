@@ -4,6 +4,7 @@ const links = [
   { to: '/', label: 'Timeline' },
   { to: '/briefings', label: 'Briefings' },
   { to: '/dead-ends', label: 'Dead Ends' },
+  { to: '/alerts', label: 'Alerts' },
   { to: '/threads', label: 'Threads' },
   { to: '/search', label: 'Search' },
   { to: '/settings', label: 'Settings' },

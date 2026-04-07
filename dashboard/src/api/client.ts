@@ -185,6 +185,33 @@ export interface DeadEnd {
   createdAt: string;
 }
 
+// Database explorer types
+export interface DbTableInfo {
+  name: string;
+  rowCount: number;
+}
+
+export interface DbColumnInfo {
+  name: string;
+  type: string;
+  primaryKey: boolean;
+  nullable: boolean;
+}
+
+export interface DbTableDetail {
+  name: string;
+  rowCount: number;
+  columns: DbColumnInfo[];
+  indexes: string[];
+}
+
+export interface DbQueryResult {
+  columns: string[];
+  rows: (string | number | null)[][];
+  rowCount: number;
+  executionMs: number;
+}
+
 // Context response
 export interface FileContext {
   path: string;
@@ -280,4 +307,13 @@ export const api = {
   // Context
   fileContext: (path: string) =>
     fetchJson<FileContext>(`/context/file/${encodeURIComponent(path)}`),
+
+  // Database explorer
+  db: {
+    tables: () => fetchJson<DbTableInfo[]>('/db/tables'),
+
+    table: (name: string) => fetchJson<DbTableDetail>(`/db/tables/${encodeURIComponent(name)}`),
+
+    query: (sql: string) => postJson<DbQueryResult>('/db/query', { sql }),
+  },
 };

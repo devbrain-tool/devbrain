@@ -25,11 +25,11 @@ export default function Replay() {
       setChain(result);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('404')) {
-        setError(`No decision chain found for '${query}'`);
-      } else {
-        setError(msg);
-      }
+      setError(
+        msg.includes('404') || msg.includes('Not Found')
+          ? `No decision chain found for '${query}'`
+          : `Error: ${msg}`
+      );
     } finally {
       setLoading(false);
     }

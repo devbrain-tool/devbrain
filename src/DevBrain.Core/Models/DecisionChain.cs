@@ -18,5 +18,4 @@ public record DecisionStep
     public required DateTime Timestamp { get; init; }
     public required DecisionStepType StepType { get; init; }
     public IReadOnlyList<string> FilesInvolved { get; init; } = [];
-    public IReadOnlyList<string> AlternativesRejected { get; init; } = [];
 }

@@ -204,7 +204,6 @@ export interface DecisionStep {
   timestamp: string;
   stepType: string;
   filesInvolved: string[];
-  alternativesRejected: string[];
 }
 
 export interface DecisionChain {

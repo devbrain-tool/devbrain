@@ -141,4 +141,80 @@ public class DecisionChainBuilderTests : IAsyncLifetime
         var chain = await _builder.BuildForDecision("nonexistent-id");
         Assert.Null(chain);
     }
+
+    [Fact]
+    public async Task BuildForDecision_RejectsNonDecisionNodeType()
+    {
+        var fileNode = await _graphStore.AddNode("File", "src/Program.cs");
+
+        var chain = await _builder.BuildForDecision(fileNode.Id);
+
+        Assert.Null(chain);
+    }
+
+    [Fact]
+    public async Task BuildForFile_RootNodeIdIsChronologicallyEarliest()
+    {
+        var fileNode = await _graphStore.AddNode("File", "src/App.cs");
+        var dec1 = await _graphStore.AddNode("Decision", "Early decision", sourceId: "obs-early");
+        var dec2 = await _graphStore.AddNode("Decision", "Late decision", sourceId: "obs-late");
+
+        await _graphStore.AddEdge(dec1.Id, fileNode.Id, "references");
+        await _graphStore.AddEdge(dec2.Id, fileNode.Id, "references");
+
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-early", SessionId = "s1", Timestamp = DateTime.UtcNow.AddHours(-5),
+            Project = "proj", EventType = EventType.Decision, Source = CaptureSource.ClaudeCode,
+            RawContent = "Early", FilesInvolved = ["src/App.cs"]
+        });
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-late", SessionId = "s1", Timestamp = DateTime.UtcNow.AddHours(-1),
+            Project = "proj", EventType = EventType.Decision, Source = CaptureSource.ClaudeCode,
+            RawContent = "Late", FilesInvolved = ["src/App.cs"]
+        });
+
+        var chain = await _builder.BuildForFile("src/App.cs");
+
+        Assert.NotNull(chain);
+        Assert.Equal("obs-early", chain.RootNodeId);
+    }
+
+    [Fact]
+    public async Task BuildForDecision_HopsLimitsTraversalDepth()
+    {
+        var dec1 = await _graphStore.AddNode("Decision", "Root", sourceId: "obs-1");
+        var dec2 = await _graphStore.AddNode("Decision", "Hop 1", sourceId: "obs-2");
+        var dec3 = await _graphStore.AddNode("Decision", "Hop 2", sourceId: "obs-3");
+
+        await _graphStore.AddEdge(dec2.Id, dec1.Id, "caused_by");
+        await _graphStore.AddEdge(dec3.Id, dec2.Id, "caused_by");
+
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-1", SessionId = "s1", Timestamp = DateTime.UtcNow.AddHours(-3),
+            Project = "proj", EventType = EventType.Decision, Source = CaptureSource.ClaudeCode,
+            RawContent = "Root"
+        });
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-2", SessionId = "s1", Timestamp = DateTime.UtcNow.AddHours(-2),
+            Project = "proj", EventType = EventType.Decision, Source = CaptureSource.ClaudeCode,
+            RawContent = "Hop 1"
+        });
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-3", SessionId = "s1", Timestamp = DateTime.UtcNow.AddHours(-1),
+            Project = "proj", EventType = EventType.Decision, Source = CaptureSource.ClaudeCode,
+            RawContent = "Hop 2"
+        });
+
+        // With hops=1, should only reach dec1 (direct neighbor)
+        var chain = await _builder.BuildForDecision(dec3.Id, maxHops: 1);
+
+        Assert.NotNull(chain);
+        // dec3 + dec2 (1 hop away) but NOT dec1 (2 hops away)
+        Assert.Equal(2, chain.Steps.Count);
+    }
 }

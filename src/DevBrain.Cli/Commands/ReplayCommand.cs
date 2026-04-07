@@ -6,9 +6,10 @@ namespace DevBrain.Cli.Commands;
 
 public class ReplayCommand : Command
 {
-    private readonly Argument<string> _pathArg = new("path")
+    private readonly Argument<string?> _pathArg = new("path")
     {
-        Description = "File path to get the decision chain for"
+        Description = "File path to get the decision chain for",
+        Arity = ArgumentArity.ZeroOrOne
     };
 
     private readonly Option<string?> _decisionOption = new("--decision")

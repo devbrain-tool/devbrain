@@ -37,6 +37,7 @@ public class LinkerAgentTests : IAsyncLifetime
             Graph: _graphStore,
             Vectors: new NullVectorStore(),
             Llm: new NullLlmService(),
+            DeadEnds: new NullDeadEndStore(),
             Settings: new Settings()
         );
     }
@@ -162,6 +163,17 @@ public class LinkerAgentTests : IAsyncLifetime
         public Task Remove(string id) => Task.CompletedTask;
         public Task Rebuild() => Task.CompletedTask;
         public Task<long> GetSizeBytes() => Task.FromResult(0L);
+    }
+
+    private class NullDeadEndStore : IDeadEndStore
+    {
+        public Task<DeadEnd> Add(DeadEnd deadEnd) => Task.FromResult(deadEnd);
+        public Task<IReadOnlyList<DeadEnd>> Query(DeadEndFilter filter)
+            => Task.FromResult<IReadOnlyList<DeadEnd>>(Array.Empty<DeadEnd>());
+        public Task<IReadOnlyList<DeadEnd>> FindByFiles(IReadOnlyList<string> filePaths)
+            => Task.FromResult<IReadOnlyList<DeadEnd>>(Array.Empty<DeadEnd>());
+        public Task<IReadOnlyList<DeadEnd>> FindSimilar(string description, int limit = 5)
+            => Task.FromResult<IReadOnlyList<DeadEnd>>(Array.Empty<DeadEnd>());
     }
 
     private class NullLlmService : ILlmService

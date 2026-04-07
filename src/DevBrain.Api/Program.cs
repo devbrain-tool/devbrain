@@ -37,6 +37,7 @@ var readOnlyDb = new ReadOnlyDb(readOnlyConnection);
 
 var observationStore = new SqliteObservationStore(connection);
 var graphStore = new SqliteGraphStore(connection);
+var deadEndStore = new SqliteDeadEndStore(connection);
 
 // ── Vector store (placeholder) ───────────────────────────────────────────────
 var vectorStore = new NullVectorStore();
@@ -75,13 +76,14 @@ var writer = new Writer(observationStore, vectorStore, obs => eventBus.Publish(o
 var pipeline = new PipelineOrchestrator(normalizer, enricher, tagger, privacyFilter, writer);
 
 // ── Agents ───────────────────────────────────────────────────────────────────
-var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, settings);
+var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, deadEndStore, settings);
 var agents = new IIntelligenceAgent[]
 {
     new LinkerAgent(),
     new DeadEndAgent(),
     new BriefingAgent(),
-    new CompressionAgent()
+    new CompressionAgent(),
+    new DecisionChainAgent()
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
@@ -101,6 +103,7 @@ builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton<IObservationStore>(observationStore);
 builder.Services.AddSingleton<IGraphStore>(graphStore);
 builder.Services.AddSingleton<IVectorStore>(vectorStore);
+builder.Services.AddSingleton<IDeadEndStore>(deadEndStore);
 builder.Services.AddSingleton<ILlmService>(llmService);
 builder.Services.AddSingleton(llmService); // concrete type for ResetDailyCounter
 builder.Services.AddSingleton(eventBus);

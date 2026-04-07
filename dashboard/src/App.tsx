@@ -12,6 +12,7 @@ import Database from './pages/Database';
 import Setup from './pages/Setup';
 import Alerts from './pages/Alerts';
 import Sessions from './pages/Sessions';
+import Replay from './pages/Replay';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/sessions" element={<Sessions />} />
+          <Route path="/replay" element={<Replay />} />
         </Routes>
       </main>
     </BrowserRouter>

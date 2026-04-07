@@ -197,6 +197,24 @@ export interface DejaVuAlert {
   createdAt: string;
 }
 
+// DecisionChain model
+export interface DecisionStep {
+  observationId: string;
+  summary: string;
+  timestamp: string;
+  stepType: string;
+  filesInvolved: string[];
+  alternativesRejected: string[];
+}
+
+export interface DecisionChain {
+  id: string;
+  rootNodeId: string;
+  narrative: string;
+  steps: DecisionStep[];
+  generatedAt: string;
+}
+
 // SessionSummary model
 export interface SessionSummary {
   id: string;
@@ -368,6 +386,13 @@ export const api = {
     });
     if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   },
+
+  // Decision Replay
+  replayFile: (path: string) =>
+    fetchJson<DecisionChain>(`/replay/file/${encodeURIComponent(path)}`),
+
+  replayDecision: (nodeId: string) =>
+    fetchJson<DecisionChain>(`/replay/decision/${encodeURIComponent(nodeId)}`),
 
   // Sessions
   sessions: (limit = 50) =>

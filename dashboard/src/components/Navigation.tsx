@@ -6,6 +6,7 @@ const links = [
   { to: '/dead-ends', label: 'Dead Ends' },
   { to: '/alerts', label: 'Alerts' },
   { to: '/sessions', label: 'Sessions' },
+  { to: '/replay', label: 'Replay' },
   { to: '/threads', label: 'Threads' },
   { to: '/search', label: 'Search' },
   { to: '/settings', label: 'Settings' },

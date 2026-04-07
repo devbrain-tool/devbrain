@@ -90,4 +90,53 @@ public class DatabaseEndpointsTests : IDisposable
         var detail = DatabaseEndpoints.GetTableDetail(_readOnlyDb, "observations; DROP TABLE observations");
         Assert.Null(detail);
     }
+
+    [Fact]
+    public void ExecuteQuery_ReturnsColumnsAndRows()
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO observations (id, session_id, timestamp, project, event_type, source, raw_content, created_at)
+            VALUES ('q1', 's1', '2026-01-01', 'proj', 'ToolCall', 'test', 'hello', '2026-01-01')
+            """;
+        cmd.ExecuteNonQuery();
+
+        var result = DatabaseEndpoints.ExecuteQuery(_readOnlyDb, "SELECT id, project FROM observations");
+
+        Assert.Equal(2, result.Columns.Count);
+        Assert.Equal("id", result.Columns[0]);
+        Assert.Equal("project", result.Columns[1]);
+        Assert.Single(result.Rows);
+        Assert.Equal("q1", result.Rows[0][0]);
+        Assert.Equal("proj", result.Rows[0][1]);
+        Assert.Equal(1, result.RowCount);
+        Assert.True(result.ExecutionMs >= 0);
+    }
+
+    [Fact]
+    public void ExecuteQuery_CapsAt1000Rows()
+    {
+        for (var i = 0; i < 1005; i++)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = $"""
+                INSERT INTO observations (id, session_id, timestamp, project, event_type, source, raw_content, created_at)
+                VALUES ('cap{i}', 's1', '2026-01-01', 'proj', 'ToolCall', 'test', 'content', '2026-01-01')
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        var result = DatabaseEndpoints.ExecuteQuery(_readOnlyDb, "SELECT * FROM observations");
+        Assert.Equal(1000, result.Rows.Count);
+        Assert.Equal(1000, result.RowCount);
+    }
+
+    [Fact]
+    public void ExecuteQuery_ThrowsForInvalidSql()
+    {
+        var ex = Assert.Throws<SqliteException>(() =>
+            DatabaseEndpoints.ExecuteQuery(_readOnlyDb, "SELECTT * FROM observations"));
+
+        Assert.Contains("syntax error", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

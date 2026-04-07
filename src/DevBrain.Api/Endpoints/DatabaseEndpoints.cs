@@ -17,6 +17,19 @@ public static class DatabaseEndpoints
             var detail = GetTableDetail(db, name);
             return detail is not null ? Results.Ok(detail) : Results.NotFound();
         });
+
+        group.MapPost("/query", (QueryRequest request, ReadOnlyDb db) =>
+        {
+            try
+            {
+                var result = ExecuteQuery(db, request.Sql);
+                return Results.Ok(result);
+            }
+            catch (SqliteException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
     }
 
     public static List<TableInfo> ListTables(ReadOnlyDb db)
@@ -97,6 +110,54 @@ public static class DatabaseEndpoints
             Columns = columns,
             Indexes = indexes
         };
+    }
+
+    public static QueryResult ExecuteQuery(ReadOnlyDb db, string sql)
+    {
+        const int maxRows = 1000;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        using var cmd = db.Connection.CreateCommand();
+        cmd.CommandText = sql;
+
+        using var reader = cmd.ExecuteReader();
+
+        var columns = new List<string>();
+        for (var i = 0; i < reader.FieldCount; i++)
+            columns.Add(reader.GetName(i));
+
+        var rows = new List<List<object?>>();
+        while (reader.Read() && rows.Count < maxRows)
+        {
+            var row = new List<object?>();
+            for (var i = 0; i < reader.FieldCount; i++)
+                row.Add(reader.IsDBNull(i) ? null : reader.GetValue(i));
+            rows.Add(row);
+        }
+
+        sw.Stop();
+
+        return new QueryResult
+        {
+            Columns = columns,
+            Rows = rows,
+            RowCount = rows.Count,
+            ExecutionMs = sw.ElapsedMilliseconds
+        };
+    }
+
+    public record QueryRequest
+    {
+        public required string Sql { get; init; }
+    }
+
+    public record QueryResult
+    {
+        public required List<string> Columns { get; init; }
+        public required List<List<object?>> Rows { get; init; }
+        public required int RowCount { get; init; }
+        public required long ExecutionMs { get; init; }
     }
 
     public record TableInfo

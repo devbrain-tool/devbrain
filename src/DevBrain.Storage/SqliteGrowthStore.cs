@@ -125,7 +125,7 @@ public class SqliteGrowthStore : IGrowthStore
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
-            return MapReport(reader);
+            return await HydrateReport(MapReportShell(reader));
         return null;
     }
 
@@ -138,8 +138,36 @@ public class SqliteGrowthStore : IGrowthStore
         var results = new List<GrowthReport>();
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-            results.Add(MapReport(reader));
+            results.Add(await HydrateReport(MapReportShell(reader)));
         return results;
+    }
+
+    private async Task<GrowthReport> HydrateReport(
+        (GrowthReport Report, List<string> MetricIds, List<string> MilestoneIds) shell)
+    {
+        var metrics = new List<DeveloperMetric>();
+        foreach (var id in shell.MetricIds)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT * FROM developer_metrics WHERE id = @id";
+            cmd.Parameters.AddWithValue("@id", id);
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+                metrics.Add(MapMetric(reader));
+        }
+
+        var milestones = new List<GrowthMilestone>();
+        foreach (var id in shell.MilestoneIds)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT * FROM milestones WHERE id = @id";
+            cmd.Parameters.AddWithValue("@id", id);
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+                milestones.Add(MapMilestone(reader));
+        }
+
+        return shell.Report with { Metrics = metrics, Milestones = milestones };
     }
 
     public async Task Clear()
@@ -175,16 +203,27 @@ public class SqliteGrowthStore : IGrowthStore
             CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
     };
 
-    private static GrowthReport MapReport(SqliteDataReader reader) => new()
+    private static (GrowthReport Report, List<string> MetricIds, List<string> MilestoneIds) MapReportShell(
+        SqliteDataReader reader)
     {
-        Id = reader.GetString(reader.GetOrdinal("id")),
-        PeriodStart = DateTime.Parse(reader.GetString(reader.GetOrdinal("period_start")),
-            CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-        PeriodEnd = DateTime.Parse(reader.GetString(reader.GetOrdinal("period_end")),
-            CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-        Narrative = reader.IsDBNull(reader.GetOrdinal("narrative"))
-            ? null : reader.GetString(reader.GetOrdinal("narrative")),
-        GeneratedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("generated_at")),
-            CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
-    };
+        var metricIds = JsonSerializer.Deserialize<List<string>>(
+            reader.GetString(reader.GetOrdinal("metrics"))) ?? [];
+        var milestoneIds = JsonSerializer.Deserialize<List<string>>(
+            reader.GetString(reader.GetOrdinal("milestones"))) ?? [];
+
+        var report = new GrowthReport
+        {
+            Id = reader.GetString(reader.GetOrdinal("id")),
+            PeriodStart = DateTime.Parse(reader.GetString(reader.GetOrdinal("period_start")),
+                CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            PeriodEnd = DateTime.Parse(reader.GetString(reader.GetOrdinal("period_end")),
+                CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            Narrative = reader.IsDBNull(reader.GetOrdinal("narrative"))
+                ? null : reader.GetString(reader.GetOrdinal("narrative")),
+            GeneratedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("generated_at")),
+                CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+        };
+
+        return (report, metricIds, milestoneIds);
+    }
 }

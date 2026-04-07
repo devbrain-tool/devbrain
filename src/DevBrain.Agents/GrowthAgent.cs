@@ -31,7 +31,8 @@ public class GrowthAgent : IIntelligenceAgent
         var weekObs = await ctx.Observations.Query(new ObservationFilter
         {
             After = periodStart,
-            Limit = 1000
+            Before = periodEnd,
+            Limit = 2000
         });
 
         if (weekObs.Count == 0)
@@ -83,12 +84,14 @@ public class GrowthAgent : IIntelligenceAgent
         var quality = weekObs.Count > 0 ? 1.0 - ((double)errorCount / weekObs.Count) : 1.0;
         metrics.Add(CreateMetric("code_quality", Math.Round(quality, 3), periodStart, periodEnd));
 
-        // Persist metrics
+        // Detect milestones BEFORE persisting metrics so history queries
+        // don't include current week's data (avoids consuming a history slot)
+        var milestones = await DetectMilestones(ctx, weekObs, metrics, periodStart);
+
+        // Now persist metrics
         foreach (var metric in metrics)
             await _growthStore.AddMetric(metric);
 
-        // Detect milestones
-        var milestones = await DetectMilestones(ctx, weekObs, metrics, periodStart);
         foreach (var milestone in milestones)
         {
             await _growthStore.AddMilestone(milestone);
@@ -149,11 +152,12 @@ public class GrowthAgent : IIntelligenceAgent
             var lastError = sorted.LastOrDefault(o => o.EventType == EventType.Error);
             if (lastError is null) continue;
 
-            var hasSubsequentWork = sorted
-                .Any(o => o.Timestamp > lastError.Timestamp && o.EventType != EventType.Error);
+            // Resolution = first non-error observation after the last error
+            var resolution = sorted
+                .FirstOrDefault(o => o.Timestamp > lastError.Timestamp && o.EventType != EventType.Error);
 
-            if (hasSubsequentWork)
-                durations.Add((lastError.Timestamp - firstError.Timestamp).TotalMinutes);
+            if (resolution is not null)
+                durations.Add((resolution.Timestamp - firstError.Timestamp).TotalMinutes);
         }
 
         return durations.Count > 0 ? durations.Average() : 0;
@@ -216,8 +220,11 @@ public class GrowthAgent : IIntelligenceAgent
                 : 0;
             var crossProjectRefs = sorted.Select(o => o.Project).Distinct().Count();
 
-            var raw = (filesInvolved * 0.3) + (decisions * 0.25) + (durationHours * 0.2) + (crossProjectRefs * 0.25);
-            scores.Add(Math.Clamp(raw / 4.0, 1.0, 5.0));
+            // Scale: 1 file + 0 decisions + 0 hours + 1 project = ~1.0
+            // 5 files + 2 decisions + 1 hour + 1 project = ~3.0
+            // 15+ files + 5+ decisions + 3+ hours + 3+ projects = ~5.0
+            var raw = (filesInvolved * 0.3) + (decisions * 0.5) + (durationHours * 0.4) + (crossProjectRefs * 0.3);
+            scores.Add(Math.Clamp(1.0 + raw, 1.0, 5.0));
         }
 
         return scores.Count > 0 ? scores.Average() : 1.0;
@@ -231,9 +238,10 @@ public class GrowthAgent : IIntelligenceAgent
 
         // "First" milestones: new projects
         var currentProjects = weekObs.Select(o => o.Project).Distinct().ToList();
+        // Use targeted query for historical projects instead of loading 5000 observations
         var historicalObs = await ctx.Observations.Query(new ObservationFilter
         {
-            Before = periodStart, Limit = 5000
+            Before = periodStart, Limit = 500
         });
         var historicalProjects = historicalObs.Select(o => o.Project).Distinct().ToHashSet();
 
@@ -251,13 +259,32 @@ public class GrowthAgent : IIntelligenceAgent
             }
         }
 
+        // "Streak" milestones: zero dead ends this week
+        var deadEndMetric = currentMetrics.FirstOrDefault(m => m.Dimension == "dead_end_rate");
+        if (deadEndMetric is not null && deadEndMetric.Value == 0)
+        {
+            var deadEndHistory = await _growthStore.GetMetrics("dead_end_rate", 4);
+            var priorWeeksWithDeadEnds = deadEndHistory.Count(m => m.Value > 0);
+
+            if (priorWeeksWithDeadEnds > 0 || deadEndHistory.Count == 0)
+            {
+                milestones.Add(new GrowthMilestone
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Type = MilestoneType.Streak,
+                    Description = "Zero dead ends this week",
+                    AchievedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         // "Improvement" milestones: any metric > 20% better than 4-week average
         foreach (var metric in currentMetrics)
         {
             var history = await _growthStore.GetMetrics(metric.Dimension, weeks: 4);
-            if (history.Count < 2) continue;
+            if (history.Count == 0) continue;
 
-            var avg = history.Where(m => m.Id != metric.Id).Select(m => m.Value).DefaultIfEmpty(0).Average();
+            var avg = history.Select(m => m.Value).Average();
             if (avg == 0) continue;
 
             // For rate metrics (dead_end_rate, retry_rate), lower is better
@@ -286,10 +313,10 @@ public class GrowthAgent : IIntelligenceAgent
             var complexityHistory = await _growthStore.GetMetrics("problem_complexity", 4);
             var qualityHistory = await _growthStore.GetMetrics("code_quality", 4);
 
-            if (complexityHistory.Count >= 2 && qualityHistory.Count >= 2)
+            if (complexityHistory.Count >= 1 && qualityHistory.Count >= 1)
             {
-                var complexityAvg = complexityHistory.Where(m => m.Id != complexityMetric.Id).Select(m => m.Value).Average();
-                var qualityAvg = qualityHistory.Where(m => m.Id != qualityMetric.Id).Select(m => m.Value).Average();
+                var complexityAvg = complexityHistory.Select(m => m.Value).Average();
+                var qualityAvg = qualityHistory.Select(m => m.Value).Average();
 
                 var complexityUp = complexityAvg > 0 && (complexityMetric.Value - complexityAvg) / complexityAvg > 0.10;
                 var qualityStable = qualityAvg > 0 && Math.Abs(qualityMetric.Value - qualityAvg) / qualityAvg <= 0.05;

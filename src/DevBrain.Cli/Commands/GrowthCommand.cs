@@ -46,7 +46,11 @@ public class GrowthCommand : Command
         {
             var client = new DevBrainHttpClient();
             if (!await client.IsHealthy()) { ConsoleFormatter.PrintError("Daemon is not running."); return; }
-            ConsoleFormatter.PrintWarning("Growth reset requires direct database access. Use the Database page in the dashboard.");
+            var response = await client.Delete("/api/v1/growth");
+            if (response.IsSuccessStatusCode)
+                ConsoleFormatter.PrintSuccess("All growth data has been cleared.");
+            else
+                ConsoleFormatter.PrintError("Failed to clear growth data.");
         });
 
         Add(milestonesCmd);

@@ -33,5 +33,11 @@ public static class GrowthEndpoints
             var milestones = await growthStore.GetMilestones(Math.Min(limit ?? 50, 200));
             return Results.Ok(milestones);
         });
+
+        group.MapDelete("/", async (IGrowthStore growthStore) =>
+        {
+            await growthStore.Clear();
+            return Results.Ok(new { cleared = true });
+        });
     }
 }

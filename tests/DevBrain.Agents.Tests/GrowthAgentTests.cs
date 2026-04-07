@@ -86,7 +86,7 @@ public class GrowthAgentTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeDebuggingSpeed_MeasuresErrorDuration()
+    public void ComputeDebuggingSpeed_MeasuresErrorToResolution()
     {
         var now = DateTime.UtcNow;
         var obs = new List<Observation>
@@ -97,7 +97,8 @@ public class GrowthAgentTests : IAsyncLifetime
         };
 
         var speed = GrowthAgent.ComputeDebuggingSpeed(obs);
-        Assert.Equal(10.0, speed);
+        // First error at t=0, resolution (FileChange after last error) at t=15
+        Assert.Equal(15.0, speed);
     }
 
     [Fact]
@@ -168,6 +169,108 @@ public class GrowthAgentTests : IAsyncLifetime
         Assert.Contains(milestones, m =>
             m.Type == MilestoneType.First &&
             m.Description.Contains("brand-new-project"));
+    }
+
+    [Fact]
+    public void ComputeDebuggingSpeed_MeasuresFirstErrorToResolution()
+    {
+        var now = DateTime.UtcNow;
+        var obs = new List<Observation>
+        {
+            MakeObs("1", "t1", now, EventType.Error),
+            MakeObs("2", "t1", now.AddMinutes(10), EventType.Error),
+            MakeObs("3", "t1", now.AddMinutes(30), EventType.FileChange), // resolution
+        };
+
+        var speed = GrowthAgent.ComputeDebuggingSpeed(obs);
+        // Should measure from first error (t=0) to resolution (t=30), not error span (t=10)
+        Assert.Equal(30.0, speed);
+    }
+
+    [Fact]
+    public void ComputeDebuggingSpeed_ZeroErrors_ReturnsZero()
+    {
+        var obs = new List<Observation>
+        {
+            MakeObs("1", "t1", DateTime.UtcNow, EventType.FileChange),
+        };
+
+        Assert.Equal(0, GrowthAgent.ComputeDebuggingSpeed(obs));
+    }
+
+    [Fact]
+    public void ComputeHeuristicComplexity_VariesAcrossThreadSizes()
+    {
+        var now = DateTime.UtcNow;
+        var simpleObs = new List<Observation>
+        {
+            MakeObs("1", "t1", now, EventType.FileChange, files: ["a.cs"]),
+        };
+        var complexObs = new List<Observation>
+        {
+            MakeObs("1", "t1", now, EventType.FileChange, files: ["a.cs", "b.cs", "c.cs", "d.cs", "e.cs"]),
+            MakeObs("2", "t1", now.AddHours(2), EventType.Decision),
+            MakeObs("3", "t1", now.AddHours(3), EventType.Decision),
+            MakeObs("4", "t1", now.AddHours(4), EventType.FileChange, files: ["f.cs", "g.cs"]),
+        };
+
+        var simple = GrowthAgent.ComputeHeuristicComplexity(simpleObs);
+        var complex = GrowthAgent.ComputeHeuristicComplexity(complexObs);
+
+        Assert.True(complex > simple,
+            $"Complex ({complex}) should be > Simple ({simple})");
+        Assert.InRange(simple, 1.0, 5.0);
+        Assert.InRange(complex, 1.0, 5.0);
+    }
+
+    [Fact]
+    public async Task Run_ReportRoundTrips_WithHydratedMetrics()
+    {
+        var now = DateTime.UtcNow;
+        for (int i = 0; i < 5; i++)
+        {
+            await _obsStore.Add(new Observation
+            {
+                Id = $"rt-{i}", SessionId = "s1", ThreadId = "t1",
+                Timestamp = now.AddMinutes(-30 + i * 5), Project = "proj",
+                EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = $"Activity {i}", FilesInvolved = [$"src/F{i}.cs"]
+            });
+        }
+
+        var ctx = CreateContext();
+        await _agent.Run(ctx, CancellationToken.None);
+
+        var report = await _growthStore.GetLatestReport();
+        Assert.NotNull(report);
+        Assert.Equal(8, report.Metrics.Count); // all 8 dimensions
+        Assert.All(report.Metrics, m => Assert.NotEmpty(m.Dimension));
+    }
+
+    [Fact]
+    public void ComputeRetryRate_MultipleSessions()
+    {
+        var now = DateTime.UtcNow;
+        var obs = new List<Observation>
+        {
+            // Session 1: has retries (3+ edits to same file)
+            new() { Id = "1", SessionId = "s1", ThreadId = "t1", Timestamp = now,
+                Project = "proj", EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = "edit", FilesInvolved = ["a.cs"] },
+            new() { Id = "2", SessionId = "s1", ThreadId = "t1", Timestamp = now.AddMinutes(1),
+                Project = "proj", EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = "edit", FilesInvolved = ["a.cs"] },
+            new() { Id = "3", SessionId = "s1", ThreadId = "t1", Timestamp = now.AddMinutes(2),
+                Project = "proj", EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = "edit", FilesInvolved = ["a.cs"] },
+            // Session 2: no retries
+            new() { Id = "4", SessionId = "s2", ThreadId = "t2", Timestamp = now,
+                Project = "proj", EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+                RawContent = "edit", FilesInvolved = ["b.cs"] },
+        };
+
+        var rate = GrowthAgent.ComputeRetryRate(obs);
+        Assert.Equal(0.5, rate); // 1 of 2 sessions has retries
     }
 
     private static Observation MakeObs(string id, string threadId, DateTime timestamp,

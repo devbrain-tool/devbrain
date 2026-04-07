@@ -7,6 +7,7 @@ const links = [
   { to: '/threads', label: 'Threads' },
   { to: '/search', label: 'Search' },
   { to: '/settings', label: 'Settings' },
+  { to: '/database', label: 'Database' },
   { to: '/health', label: 'Health' },
 ];
 

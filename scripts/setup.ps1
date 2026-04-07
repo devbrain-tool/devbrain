@@ -406,16 +406,115 @@ if ($postResult) {
     } else { Check-Fail "Observation written but not readable" }
 } else { Check-Fail "Observation write failed" }
 
-# 9.7 - Claude Code hook
-$claudeSettings = "$env:USERPROFILE\.claude\settings.json"
-if ((Test-Path $claudeSettings) -and ((Get-Content $claudeSettings -Raw) -match "37800")) {
-    Check-Pass "Claude Code hook configured"
-} else { Check-Warn "Claude Code hook not detected (manual config may be needed)" }
+# 9.7 - Claude Code (deep validation)
+$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
+if ($claudeCmd) {
+    $claudeVer = try { & claude --version 2>$null | Select-Object -First 1 } catch { "unknown" }
+    Check-Pass "Claude CLI installed ($claudeVer)"
+} else {
+    Check-Warn "Claude CLI not found (install: npm install -g @anthropic-ai/claude-code)"
+}
 
-# 9.8 - Copilot wrappers
+$claudeSettings = "$env:USERPROFILE\.claude\settings.json"
+if (Test-Path $claudeSettings) {
+    $settingsContent = Get-Content $claudeSettings -Raw
+    try {
+        $null = $settingsContent | ConvertFrom-Json -ErrorAction Stop
+        Check-Pass "Claude settings.json is valid JSON"
+
+        if ($settingsContent -match "PostToolUse" -and $settingsContent -match "$DaemonPort") {
+            Check-Pass "PostToolUse hook configured for port $DaemonPort"
+        } else {
+            Write-Warn "  PostToolUse hook missing - attempting auto-fix..."
+            $hookJson = @"
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "curl -s -X POST http://127.0.0.1:${DaemonPort}/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"`$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: `$CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"`$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
+      }
+    ]
+  }
+}
+"@
+            Set-Content -Path $claudeSettings -Value $hookJson -Encoding UTF8
+            if ((Get-Content $claudeSettings -Raw) -match "$DaemonPort") {
+                Check-Pass "PostToolUse hook auto-fixed"
+            } else {
+                Check-Fail "Could not configure PostToolUse hook"
+            }
+        }
+    } catch {
+        Copy-Item $claudeSettings "$claudeSettings.bak" -ErrorAction SilentlyContinue
+        Set-Content -Path $claudeSettings -Value '{"hooks":{}}' -Encoding UTF8
+        Check-Warn "Claude settings.json was invalid - recreated (backup at .bak)"
+    }
+} else {
+    Check-Warn "Claude settings.json not found (will be created when Claude Code is configured)"
+}
+
+# Claude round-trip test
+if ($claudeCmd -and (Test-Path $claudeSettings) -and ((Get-Content $claudeSettings -Raw) -match "$DaemonPort")) {
+    $rtResult = try {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$DaemonPort/api/v1/observations" -Method Post -ContentType "application/json" -Body (@{
+            sessionId = "setup-claude-test"
+            eventType = "Decision"
+            source = "ClaudeCode"
+            rawContent = "Claude setup validation"
+            project = "devbrain-setup-validation"
+        } | ConvertTo-Json) -ErrorAction Stop
+        $true
+    } catch { $false }
+
+    if ($rtResult) {
+        Start-Sleep -Milliseconds 500
+        $rtRead = try { Invoke-RestMethod "http://127.0.0.1:$DaemonPort/api/v1/observations?project=devbrain-setup-validation&limit=1" -ErrorAction Stop } catch { $null }
+        if ($rtRead -and ($rtRead | ConvertTo-Json) -match "devbrain-setup-validation") {
+            Check-Pass "Claude capture round-trip verified"
+        } else { Check-Fail "Claude round-trip: written but not readable" }
+    } else { Check-Fail "Claude round-trip: POST failed" }
+}
+
+# 9.8 - GitHub Copilot (deep validation)
+$ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+if ($ghCmd) {
+    $ghVer = try { & gh --version 2>$null | Select-Object -First 1 } catch { "unknown" }
+    Check-Pass "GitHub CLI installed ($ghVer)"
+
+    $ghCopilotOk = try { & gh copilot --help 2>$null; $LASTEXITCODE -eq 0 } catch { $false }
+    if ($ghCopilotOk) {
+        Check-Pass "gh copilot extension installed"
+    } else {
+        Check-Warn "gh copilot extension not installed (run: gh extension install github/gh-copilot)"
+    }
+} else {
+    Check-Warn "GitHub CLI not found (install from https://cli.github.com/)"
+}
+
 if ((Test-Path $PROFILE) -and ((Get-Content $PROFILE -Raw) -match "ghcs")) {
     Check-Pass "Copilot wrappers in PowerShell profile"
-} else { Check-Warn "Copilot wrappers not found in profile" }
+} else {
+    Check-Warn "Copilot wrappers not found in profile"
+}
+
+# Copilot round-trip test
+if ((Test-Path $PROFILE) -and ((Get-Content $PROFILE -Raw) -match "ghcs")) {
+    $crtResult = try {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$DaemonPort/api/v1/observations" -Method Post -ContentType "application/json" -Body (@{
+            sessionId = "setup-copilot-test"
+            eventType = "Conversation"
+            source = "VSCode"
+            rawContent = "Copilot setup validation"
+            project = "devbrain-setup-validation"
+        } | ConvertTo-Json) -ErrorAction Stop
+        $true
+    } catch { $false }
+
+    if ($crtResult) {
+        Check-Pass "Copilot capture round-trip verified"
+    } else { Check-Fail "Copilot round-trip: POST failed" }
+}
 
 # 9.9 - Ollama + model
 $ollamaCmd2 = Get-Command ollama -ErrorAction SilentlyContinue

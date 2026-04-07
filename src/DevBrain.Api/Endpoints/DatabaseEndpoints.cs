@@ -22,8 +22,13 @@ public static class DatabaseEndpoints
         {
             try
             {
-                var result = ExecuteQuery(db, request.Sql);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var result = ExecuteQuery(db, request.Sql, cts.Token);
                 return Results.Ok(result);
+            }
+            catch (OperationCanceledException)
+            {
+                return Results.BadRequest(new { error = "Query timed out after 30 seconds" });
             }
             catch (SqliteException ex)
             {
@@ -45,7 +50,7 @@ public static class DatabaseEndpoints
             var name = reader.GetString(0);
             if (name.StartsWith("sqlite_") || name == "_meta")
                 continue;
-            if (ExcludedSuffixes.Any(suffix => name.EndsWith(suffix)) || name.EndsWith("_fts"))
+            if (ExcludedSuffixes.Any(suffix => name.EndsWith(suffix)))
                 continue;
             tableNames.Add(name);
         }
@@ -112,7 +117,7 @@ public static class DatabaseEndpoints
         };
     }
 
-    public static QueryResult ExecuteQuery(ReadOnlyDb db, string sql)
+    public static QueryResult ExecuteQuery(ReadOnlyDb db, string sql, CancellationToken ct = default)
     {
         const int maxRows = 1000;
 
@@ -130,6 +135,7 @@ public static class DatabaseEndpoints
         var rows = new List<List<object?>>();
         while (reader.Read() && rows.Count < maxRows)
         {
+            ct.ThrowIfCancellationRequested();
             var row = new List<object?>();
             for (var i = 0; i < reader.FieldCount; i++)
                 row.Add(reader.IsDBNull(i) ? null : reader.GetValue(i));

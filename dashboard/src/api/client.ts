@@ -314,6 +314,17 @@ export const api = {
 
     table: (name: string) => fetchJson<DbTableDetail>(`/db/tables/${encodeURIComponent(name)}`),
 
-    query: (sql: string) => postJson<DbQueryResult>('/db/query', { sql }),
+    query: async (sql: string) => {
+      const res = await fetch(`${BASE_URL}/db/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `API error ${res.status}: ${res.statusText}`);
+      }
+      return res.json() as Promise<DbQueryResult>;
+    },
   },
 };

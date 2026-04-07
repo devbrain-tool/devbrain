@@ -24,13 +24,31 @@ export default function Database() {
     api.db.tables().then(setTables).catch((e) => setError(String(e)));
   }, []);
 
-  // Build and execute browse query
-  const browseTable = (table: string, pageNum: number, col: string | null, dir: SortDir) => {
+  // Fetch only query results (used for page/sort changes)
+  const fetchRows = (table: string, pageNum: number, col: string | null, dir: SortDir) => {
     setLoading(true);
     setError(null);
 
     const orderClause = col ? ` ORDER BY "${col}" ${dir}` : '';
     const sql = `SELECT * FROM "${table}"${orderClause} LIMIT ${PAGE_SIZE} OFFSET ${pageNum * PAGE_SIZE}`;
+
+    api.db.query(sql)
+      .then((result) => {
+        setQueryResult(result);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(String(e));
+        setLoading(false);
+      });
+  };
+
+  // Fetch table detail + first page (used when selecting a new table)
+  const browseTable = (table: string) => {
+    setLoading(true);
+    setError(null);
+
+    const sql = `SELECT * FROM "${table}" LIMIT ${PAGE_SIZE} OFFSET 0`;
 
     Promise.all([
       api.db.table(table),
@@ -53,7 +71,7 @@ export default function Database() {
     setPage(0);
     setSortCol(null);
     setSortDir('ASC');
-    browseTable(name, 0, null, 'ASC');
+    browseTable(name);
   };
 
   const handleSort = (col: string) => {
@@ -62,13 +80,13 @@ export default function Database() {
     setSortCol(col);
     setSortDir(newDir);
     setPage(0);
-    browseTable(activeTable, 0, col, newDir);
+    fetchRows(activeTable, 0, col, newDir);
   };
 
   const handlePageChange = (newPage: number) => {
     if (!activeTable) return;
     setPage(newPage);
-    browseTable(activeTable, newPage, sortCol, sortDir);
+    fetchRows(activeTable, newPage, sortCol, sortDir);
   };
 
   const handleRunSql = () => {
@@ -173,8 +191,11 @@ export default function Database() {
                     {queryResult.columns.map((col) => (
                       <th
                         key={col}
-                        style={styles.th}
-                        onClick={() => mode === 'browse' ? handleSort(col) : undefined}
+                        style={{
+                          ...styles.th,
+                          cursor: mode === 'browse' ? 'pointer' : 'default',
+                        }}
+                        onClick={mode === 'browse' ? () => handleSort(col) : undefined}
                       >
                         {col}
                         {mode === 'browse' && sortCol === col && (
@@ -395,7 +416,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     position: 'sticky' as const,
     top: 0,
-    cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
     userSelect: 'none' as const,
   },

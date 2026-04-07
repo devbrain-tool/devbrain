@@ -8,6 +8,7 @@ import Search from './pages/Search';
 import SettingsPage from './pages/SettingsPage';
 import Health from './pages/Health';
 import Database from './pages/Database';
+import Setup from './pages/Setup';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/health" element={<Health />} />
           <Route path="/database" element={<Database />} />
+          <Route path="/setup" element={<Setup />} />
         </Routes>
       </main>
     </BrowserRouter>

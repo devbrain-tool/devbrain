@@ -8,6 +8,7 @@ const links = [
   { to: '/search', label: 'Search' },
   { to: '/settings', label: 'Settings' },
   { to: '/database', label: 'Database' },
+  { to: '/setup', label: 'Setup' },
   { to: '/health', label: 'Health' },
 ];
 

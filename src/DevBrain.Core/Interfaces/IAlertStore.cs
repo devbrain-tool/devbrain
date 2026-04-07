@@ -7,6 +7,6 @@ public interface IAlertStore
     Task<DejaVuAlert> Add(DejaVuAlert alert);
     Task<IReadOnlyList<DejaVuAlert>> GetActive();
     Task<IReadOnlyList<DejaVuAlert>> GetAll(int limit = 100);
-    Task Dismiss(string id);
+    Task<bool> Dismiss(string id);
     Task<bool> Exists(string threadId, string deadEndId);
 }

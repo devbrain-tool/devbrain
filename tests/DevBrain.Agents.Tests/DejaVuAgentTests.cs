@@ -142,6 +142,60 @@ public class DejaVuAgentTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Run_PushesToAlertSinkWhenProvided()
+    {
+        var sink = new CapturingAlertSink();
+        var agentWithSink = new DejaVuAgent(_alertStore, sink);
+
+        await _deadEndStore.Add(new DeadEnd
+        {
+            Id = "de-1", Project = "proj",
+            Description = "Known issue", Approach = "approach", Reason = "reason",
+            FilesInvolved = ["src/A.cs"],
+            DetectedAt = DateTime.UtcNow.AddDays(-1)
+        });
+
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-1", SessionId = "s1", ThreadId = "t1",
+            Timestamp = DateTime.UtcNow, Project = "proj",
+            EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+            RawContent = "Editing A", FilesInvolved = ["src/A.cs"]
+        });
+
+        var ctx = CreateContext();
+        await agentWithSink.Run(ctx, CancellationToken.None);
+
+        Assert.Single(sink.SentAlerts);
+        Assert.Equal("de-1", sink.SentAlerts[0].MatchedDeadEndId);
+    }
+
+    [Fact]
+    public async Task Run_SkipsDeadEndsWithEmptyFiles()
+    {
+        await _deadEndStore.Add(new DeadEnd
+        {
+            Id = "de-empty", Project = "proj",
+            Description = "Empty files", Approach = "approach", Reason = "reason",
+            FilesInvolved = [],
+            DetectedAt = DateTime.UtcNow.AddDays(-1)
+        });
+
+        await _obsStore.Add(new Observation
+        {
+            Id = "obs-1", SessionId = "s1", ThreadId = "t1",
+            Timestamp = DateTime.UtcNow, Project = "proj",
+            EventType = EventType.FileChange, Source = CaptureSource.ClaudeCode,
+            RawContent = "Editing", FilesInvolved = ["src/A.cs"]
+        });
+
+        var ctx = CreateContext();
+        var results = await _agent.Run(ctx, CancellationToken.None);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
     public async Task Run_SkipsObservationsWithoutThreadId()
     {
         await _deadEndStore.Add(new DeadEnd
@@ -164,5 +218,16 @@ public class DejaVuAgentTests : IAsyncLifetime
         var results = await _agent.Run(ctx, CancellationToken.None);
 
         Assert.Empty(results);
+    }
+
+    private class CapturingAlertSink : IAlertSink
+    {
+        public List<DejaVuAlert> SentAlerts { get; } = [];
+
+        public Task Send(DejaVuAlert alert, CancellationToken ct = default)
+        {
+            SentAlerts.Add(alert);
+            return Task.CompletedTask;
+        }
     }
 }

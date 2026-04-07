@@ -13,18 +13,18 @@ public class AlertsCommand : Command
         dismissCmd.Add(idArg);
         dismissCmd.SetAction(async (pr) =>
         {
-            var id = pr.GetValue(idArg);
+            var id = pr.GetValue(idArg)!;
             var client = new DevBrainHttpClient();
             if (!await client.IsHealthy())
             {
                 ConsoleFormatter.PrintError("Daemon is not running.");
                 return;
             }
-            var response = await client.Post($"/api/v1/alerts/{id}/dismiss");
+            var response = await client.Post($"/api/v1/alerts/{Uri.EscapeDataString(id)}/dismiss");
             if (response.IsSuccessStatusCode)
                 ConsoleFormatter.PrintSuccess($"Alert {id} dismissed.");
             else
-                ConsoleFormatter.PrintError("Failed to dismiss alert.");
+                ConsoleFormatter.PrintError("Failed to dismiss alert. It may not exist.");
         });
 
         var historyCmd = new Command("history", "Show all alerts including dismissed");
@@ -36,7 +36,7 @@ public class AlertsCommand : Command
                 ConsoleFormatter.PrintError("Daemon is not running.");
                 return;
             }
-            await PrintAlerts(client, "/api/v1/alerts/all", includeStatus: true);
+            await PrintAlerts(client, "/api/v1/alerts/all");
         });
 
         Add(dismissCmd);
@@ -52,10 +52,10 @@ public class AlertsCommand : Command
             ConsoleFormatter.PrintError("Daemon is not running.");
             return;
         }
-        await PrintAlerts(client, "/api/v1/alerts", includeStatus: false);
+        await PrintAlerts(client, "/api/v1/alerts");
     }
 
-    private static async Task PrintAlerts(DevBrainHttpClient client, string url, bool includeStatus)
+    private static async Task PrintAlerts(DevBrainHttpClient client, string url)
     {
         try
         {

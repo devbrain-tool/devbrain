@@ -17,14 +17,17 @@ public static class AlertEndpoints
 
         group.MapGet("/all", async (IAlertStore alertStore, int? limit) =>
         {
-            var alerts = await alertStore.GetAll(limit ?? 100);
+            var capped = Math.Min(limit ?? 100, 1000);
+            var alerts = await alertStore.GetAll(capped);
             return Results.Ok(alerts);
         });
 
         group.MapPost("/{id}/dismiss", async (string id, IAlertStore alertStore) =>
         {
-            await alertStore.Dismiss(id);
-            return Results.Ok(new { dismissed = true });
+            var found = await alertStore.Dismiss(id);
+            return found
+                ? Results.Ok(new { dismissed = true })
+                : Results.NotFound(new { error = $"Alert '{id}' not found" });
         });
 
         group.MapGet("/stream", (AlertChannel channel, CancellationToken ct) =>
@@ -37,7 +40,7 @@ public static class AlertEndpoints
 
     private static async Task WriteSSE(Stream stream, AlertChannel channel, CancellationToken ct)
     {
-        var writer = new StreamWriter(stream) { AutoFlush = true };
+        await using var writer = new StreamWriter(stream) { AutoFlush = true };
 
         await foreach (var alert in channel.ReadAllAsync(ct))
         {

@@ -53,12 +53,13 @@ public class SqliteAlertStore : IAlertStore
         return await ReadAlerts(cmd);
     }
 
-    public async Task Dismiss(string id)
+    public async Task<bool> Dismiss(string id)
     {
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = "UPDATE deja_vu_alerts SET dismissed = 1 WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", id);
-        await cmd.ExecuteNonQueryAsync();
+        var rows = await cmd.ExecuteNonQueryAsync();
+        return rows > 0;
     }
 
     public async Task<bool> Exists(string threadId, string deadEndId)

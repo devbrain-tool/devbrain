@@ -53,6 +53,7 @@ public class DejaVuAgent : IIntelligenceAgent
             foreach (var deadEnd in matchingDeadEnds)
             {
                 if (ct.IsCancellationRequested) break;
+                if (deadEnd.FilesInvolved.Count == 0) continue;
 
                 var overlap = deadEnd.FilesInvolved.Count(f => currentFileSet.Contains(f));
                 var confidence = (double)overlap / deadEnd.FilesInvolved.Count;

@@ -1,7 +1,6 @@
 namespace DevBrain.Agents;
 
 using System.Collections.Concurrent;
-using System.Text.Json;
 using Cronos;
 using DevBrain.Core.Enums;
 using DevBrain.Core.Interfaces;
@@ -124,27 +123,19 @@ public class AgentScheduler : BackgroundService
             // Persist dead-end outputs
             foreach (var output in results)
             {
-                if (output.Type == AgentOutputType.DeadEndDetected && output.Data is not null)
+                if (output.Type == AgentOutputType.DeadEndDetected && output.Data is DeadEndOutputData data)
                 {
                     try
                     {
-                        var data = JsonSerializer.Deserialize<JsonElement>(
-                            JsonSerializer.Serialize(output.Data));
-
-                        var threadId = data.TryGetProperty("ThreadId", out var tid) ? tid.GetString() : null;
-                        var files = data.TryGetProperty("Files", out var f)
-                            ? f.EnumerateArray().Select(x => x.GetString()!).ToList()
-                            : new List<string>();
-
                         var deadEnd = new DeadEnd
                         {
                             Id = Guid.NewGuid().ToString(),
-                            ThreadId = threadId,
-                            Project = "unknown",
+                            ThreadId = data.ThreadId,
+                            Project = data.Project,
                             Description = output.Content,
                             Approach = "Repeated file edits after errors",
                             Reason = "Heuristic: 3+ edits to same file in thread with errors",
-                            FilesInvolved = files,
+                            FilesInvolved = data.Files,
                             DetectedAt = DateTime.UtcNow
                         };
 

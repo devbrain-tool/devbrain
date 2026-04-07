@@ -76,7 +76,7 @@ var writer = new Writer(observationStore, vectorStore, obs => eventBus.Publish(o
 var pipeline = new PipelineOrchestrator(normalizer, enricher, tagger, privacyFilter, writer);
 
 // ── Agents ───────────────────────────────────────────────────────────────────
-var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, deadEndStore, settings);
+var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, settings, deadEndStore);
 var agents = new IIntelligenceAgent[]
 {
     new LinkerAgent(),

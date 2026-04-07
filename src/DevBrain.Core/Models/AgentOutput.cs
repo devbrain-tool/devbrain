@@ -15,3 +15,5 @@ public enum AgentOutputType
 }
 
 public record AgentOutput(AgentOutputType Type, string Content, object? Data = null);
+
+public record DeadEndOutputData(string? ThreadId, string Project, IReadOnlyList<string> Files);

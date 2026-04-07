@@ -78,6 +78,6 @@ public class BriefingAgent : IIntelligenceAgent
                 lines.Add($"  Files: {string.Join(", ", obs.FilesInvolved)}");
         }
 
-        return string.Format(Prompts.BriefingGeneration, string.Join("\n", lines));
+        return Prompts.Fill(Prompts.BriefingGeneration, ("OBSERVATIONS", string.Join("\n", lines)));
     }
 }

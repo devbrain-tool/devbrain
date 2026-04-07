@@ -40,8 +40,8 @@ public class DecisionChainAgentTests : IAsyncLifetime
             Graph: _graphStore,
             Vectors: new NullVectorStore(),
             Llm: llm ?? new ClassifyingLlmService("caused_by"),
-            DeadEnds: _deadEndStore,
-            Settings: new Settings()
+            Settings: new Settings(),
+            DeadEnds: _deadEndStore
         );
     }
 
@@ -138,13 +138,4 @@ public class DecisionChainAgentTests : IAsyncLifetime
             => Task.FromResult(Array.Empty<float>());
     }
 
-    private class NullVectorStore : IVectorStore
-    {
-        public Task Index(string id, string text, VectorCategory category) => Task.CompletedTask;
-        public Task<IReadOnlyList<VectorMatch>> Search(string query, int topK = 20, VectorCategory? filter = null)
-            => Task.FromResult<IReadOnlyList<VectorMatch>>(Array.Empty<VectorMatch>());
-        public Task Remove(string id) => Task.CompletedTask;
-        public Task Rebuild() => Task.CompletedTask;
-        public Task<long> GetSizeBytes() => Task.FromResult(0L);
-    }
 }

@@ -2,17 +2,30 @@ namespace DevBrain.Core;
 
 public static class Prompts
 {
+    /// <summary>
+    /// Safely fills named placeholders in a prompt template.
+    /// Uses {NAME} syntax instead of {0} to avoid FormatException
+    /// when user content contains braces (common in C# code).
+    /// </summary>
+    public static string Fill(string template, params (string key, string value)[] replacements)
+    {
+        var result = template;
+        foreach (var (key, value) in replacements)
+            result = result.Replace($"{{{key}}}", value);
+        return result;
+    }
+
     // -- Feature 2: Session Storytelling --
 
     public const string StorytellerNarrative = """
         Write a developer session narrative from these events.
 
-        Session duration: {0}
-        Phases: {1}
-        Turning points: {2}
+        Session duration: {DURATION}
+        Phases: {PHASES}
+        Turning points: {TURNING_POINTS}
 
         Events:
-        {3}
+        {EVENTS}
 
         Rules:
         - Past tense, third person ("The developer...")
@@ -28,9 +41,9 @@ public static class Prompts
     public const string DecisionClassification = """
         Given two developer decisions about the same codebase, classify their relationship.
 
-        Decision A (earlier): {0}
-        Decision B (later): {1}
-        Shared files: {2}
+        Decision A (earlier): {DECISION_A}
+        Decision B (later): {DECISION_B}
+        Shared files: {SHARED_FILES}
 
         Classify as ONE of:
         - caused_by: B was motivated by A
@@ -44,9 +57,9 @@ public static class Prompts
     public const string DecisionChainNarrative = """
         Explain why this code exists by narrating the chain of decisions that led to it.
 
-        File: {0}
+        File: {FILE}
         Decision chain (chronological):
-        {1}
+        {CHAIN}
 
         Rules:
         - Explain the "why" behind each decision
@@ -60,11 +73,11 @@ public static class Prompts
     public const string BlastRadiusSummary = """
         Summarize the potential impact of changing this file.
 
-        File being changed: {0}
+        File being changed: {FILE}
         Affected files and their connection:
-        {1}
+        {AFFECTED}
         Dead ends at risk of re-triggering:
-        {2}
+        {DEAD_ENDS}
 
         Rules:
         - Focus on the highest-risk impacts
@@ -83,10 +96,10 @@ public static class Prompts
         4 = Complex (architectural decisions, novel algorithms)
         5 = Expert (system design, performance-critical, multi-system integration)
 
-        Thread summary: {0}
-        Files changed: {1}
-        Decisions made: {2}
-        Errors encountered: {3}
+        Thread summary: {SUMMARY}
+        Files changed: {FILES}
+        Decisions made: {DECISIONS}
+        Errors encountered: {ERRORS}
 
         Respond with ONLY the number.
         """;
@@ -100,8 +113,8 @@ public static class Prompts
         - environment: config issue, missing dependency, wrong version
         - external: third-party API failure, network issue, dependency bug
 
-        Error: {0}
-        Context: {1}
+        Error: {ERROR}
+        Context: {CONTEXT}
 
         Respond with ONLY the category.
         """;
@@ -112,12 +125,12 @@ public static class Prompts
         Given these developer metrics for the past week, write 2-3 sentences
         highlighting the most interesting trend or achievement.
 
-        Metrics: {0}
-        Milestones: {1}
-        4-week trend: {2}
-        Complexity trend: {3}
-        Quality trend: {4}
-        Error breakdown: {5}
+        Metrics: {METRICS}
+        Milestones: {MILESTONES}
+        4-week trend: {TREND}
+        Complexity trend: {COMPLEXITY}
+        Quality trend: {QUALITY}
+        Error breakdown: {ERROR_BREAKDOWN}
 
         Rules:
         - Be encouraging but honest
@@ -135,7 +148,7 @@ public static class Prompts
         Format as markdown with sections.
 
         Observations:
-        {0}
+        {OBSERVATIONS}
         """;
 
     // -- Existing: Compression Agent (migrated from CompressionAgent.cs) --
@@ -143,6 +156,6 @@ public static class Prompts
     public const string CompressionSummarization = """
         Summarize the following development observation concisely:
 
-        {0}
+        {CONTENT}
         """;
 }

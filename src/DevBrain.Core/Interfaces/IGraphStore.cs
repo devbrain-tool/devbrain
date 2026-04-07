@@ -7,6 +7,7 @@ public interface IGraphStore
     Task<GraphNode> AddNode(string type, string name, object? data = null, string? sourceId = null);
     Task<GraphNode?> GetNode(string id);
     Task<IReadOnlyList<GraphNode>> GetNodesByType(string type);
+    Task<GraphNode?> GetNodeBySourceId(string sourceId);
     Task RemoveNode(string id);
 
     Task<GraphEdge> AddEdge(string sourceId, string targetId, string type, object? data = null);

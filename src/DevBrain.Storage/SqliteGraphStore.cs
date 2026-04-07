@@ -74,6 +74,18 @@ public class SqliteGraphStore : IGraphStore
         return nodes;
     }
 
+    public async Task<GraphNode?> GetNodeBySourceId(string sourceId)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT id, type, name, data, source_id, created_at FROM graph_nodes WHERE source_id = @sourceId LIMIT 1";
+        cmd.Parameters.AddWithValue("@sourceId", sourceId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+            return ReadNode(reader);
+        return null;
+    }
+
     public async Task RemoveNode(string id)
     {
         // Delete all connected edges first (cascade)

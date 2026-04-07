@@ -62,8 +62,7 @@ public class DecisionChainAgent : IIntelligenceAgent
 
     private static async Task<GraphNode> FindOrCreateDecisionNode(AgentContext ctx, Observation decision)
     {
-        var existing = await ctx.Graph.GetNodesByType("Decision");
-        var found = existing.FirstOrDefault(n => n.SourceId == decision.Id);
+        var found = await ctx.Graph.GetNodeBySourceId(decision.Id);
         if (found is not null) return found;
 
         return await ctx.Graph.AddNode("Decision", decision.Summary ?? decision.RawContent, sourceId: decision.Id);
@@ -87,10 +86,10 @@ public class DecisionChainAgent : IIntelligenceAgent
     private static async Task<string?> ClassifyRelationship(
         AgentContext ctx, Observation decision, GraphNode candidate, CancellationToken ct)
     {
-        var prompt = string.Format(Prompts.DecisionClassification,
-            candidate.Name,
-            decision.Summary ?? decision.RawContent,
-            string.Join(", ", decision.FilesInvolved));
+        var prompt = Prompts.Fill(Prompts.DecisionClassification,
+            ("DECISION_A", candidate.Name),
+            ("DECISION_B", decision.Summary ?? decision.RawContent),
+            ("SHARED_FILES", string.Join(", ", decision.FilesInvolved)));
 
         var task = new LlmTask
         {
@@ -105,6 +104,10 @@ public class DecisionChainAgent : IIntelligenceAgent
         try
         {
             result = await ctx.Llm.Submit(task, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {
@@ -126,8 +129,7 @@ public class DecisionChainAgent : IIntelligenceAgent
         var matchingDeadEnds = await ctx.DeadEnds.FindByFiles(decision.FilesInvolved);
         foreach (var deadEnd in matchingDeadEnds)
         {
-            var deNodes = await ctx.Graph.GetNodesByType("Bug");
-            var deNode = deNodes.FirstOrDefault(n => n.SourceId == deadEnd.Id);
+            var deNode = await ctx.Graph.GetNodeBySourceId(deadEnd.Id);
             if (deNode is null)
                 deNode = await ctx.Graph.AddNode("Bug", deadEnd.Description, sourceId: deadEnd.Id);
 

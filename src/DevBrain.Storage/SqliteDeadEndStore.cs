@@ -75,21 +75,39 @@ public class SqliteDeadEndStore : IDeadEndStore
 
     public async Task<IReadOnlyList<DeadEnd>> FindByFiles(IReadOnlyList<string> filePaths)
     {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "SELECT * FROM dead_ends ORDER BY detected_at DESC";
+        if (filePaths.Count == 0)
+            return [];
 
-        var all = await ReadDeadEnds(cmd);
+        // Pre-filter in SQL using LIKE on the JSON text column, then verify client-side.
+        // This avoids a full-table scan while handling JSON array storage correctly.
+        using var cmd = _connection.CreateCommand();
+        var likeClauses = new List<string>();
+        for (int i = 0; i < filePaths.Count; i++)
+        {
+            likeClauses.Add($"files_involved LIKE @fp{i}");
+            cmd.Parameters.AddWithValue($"@fp{i}", $"%{EscapeLike(filePaths[i])}%");
+        }
+
+        cmd.CommandText = $"SELECT * FROM dead_ends WHERE {string.Join(" OR ", likeClauses)} ORDER BY detected_at DESC LIMIT 200";
+
+        var candidates = await ReadDeadEnds(cmd);
         var fileSet = filePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return all
+        // Exact match after JSON deserialization (LIKE may produce false positives)
+        return candidates
             .Where(de => de.FilesInvolved.Any(f => fileSet.Contains(f)))
             .ToList();
+    }
+
+    private static string EscapeLike(string value)
+    {
+        return value.Replace("%", "").Replace("_", "").Replace("[", "");
     }
 
     public async Task<IReadOnlyList<DeadEnd>> FindSimilar(string description, int limit = 5)
     {
         var keywords = description.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => w.Length > 3)
+            .Where(w => w.Length > 2)
             .Take(5)
             .ToList();
 

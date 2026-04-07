@@ -183,8 +183,13 @@ if (Test-Path $ClaudeSettings) {
   "hooks": {
     "PostToolUse": [
       {
-        "type": "command",
-        "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: $CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: $CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
+          }
+        ]
       }
     ]
   }
@@ -431,8 +436,13 @@ if (Test-Path $claudeSettings) {
   "hooks": {
     "PostToolUse": [
       {
-        "type": "command",
-        "command": "curl -s -X POST http://127.0.0.1:${DaemonPort}/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"`$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: `$CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"`$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://127.0.0.1:${DaemonPort}/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"`$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: `$CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"`$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"
+          }
+        ]
       }
     ]
   }

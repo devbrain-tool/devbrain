@@ -161,13 +161,20 @@ public class SetupValidator
                     "PostToolUse is empty", fixable: true);
 
             var portStr = _port.ToString();
-            foreach (var hook in postToolUse.EnumerateArray())
+            foreach (var matcher in postToolUse.EnumerateArray())
             {
-                if (hook.TryGetProperty("command", out var cmd) &&
-                    cmd.GetString()?.Contains(portStr) == true)
+                if (!matcher.TryGetProperty("hooks", out var innerHooks) ||
+                    innerHooks.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var hook in innerHooks.EnumerateArray())
                 {
-                    return Pass("claude-hook", "Claude Code", "PostToolUse hook configured",
-                        $"Hook found targeting port {_port}");
+                    if (hook.TryGetProperty("command", out var cmd) &&
+                        cmd.GetString()?.Contains(portStr) == true)
+                    {
+                        return Pass("claude-hook", "Claude Code", "PostToolUse hook configured",
+                            $"Hook found targeting port {_port}");
+                    }
                 }
             }
 
@@ -332,7 +339,8 @@ public class SetupValidator
             + "\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '$CLAUDE_TOOL_NAME'\","
             + "\"project\":\"'$CLAUDE_PROJECT'\"}' >/dev/null 2>&1";
 
-        var hook = new { type = "command", command = hookCommand };
+        var hookEntry = new { type = "command", command = hookCommand };
+        var matcherEntry = new { matcher = "", hooks = new[] { hookEntry } };
 
         // Preserve existing non-PostToolUse hooks
         var existingHooks = new Dictionary<string, object>();
@@ -345,7 +353,7 @@ public class SetupValidator
             }
         }
 
-        // Build PostToolUse array — keep existing non-devbrain hooks
+        // Build PostToolUse array — keep existing non-devbrain matchers
         var postToolUseList = new List<object>();
         if (root.TryGetProperty("hooks", out var h2) &&
             h2.TryGetProperty("PostToolUse", out var ptu) &&
@@ -358,7 +366,7 @@ public class SetupValidator
                     postToolUseList.Add(JsonSerializer.Deserialize<object>(raw)!);
             }
         }
-        postToolUseList.Add(hook);
+        postToolUseList.Add(matcherEntry);
         existingHooks["PostToolUse"] = postToolUseList;
 
         // Rebuild full settings preserving non-hook properties

@@ -170,8 +170,13 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
     echo "  In $CLAUDE_SETTINGS, add to hooks.PostToolUse:"
     echo ""
     echo '  {'
-    echo '    "type": "command",'
-    echo '    "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: $CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"'
+    echo '    "matcher": "",'
+    echo '    "hooks": ['
+    echo '      {'
+    echo '        "type": "command",'
+    echo '        "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H \"Content-Type: application/json\" -d \"{\\\"sessionId\\\":\\\"$CLAUDE_SESSION_ID\\\",\\\"eventType\\\":\\\"ToolCall\\\",\\\"source\\\":\\\"ClaudeCode\\\",\\\"rawContent\\\":\\\"Tool: $CLAUDE_TOOL_NAME\\\",\\\"project\\\":\\\"$CLAUDE_PROJECT\\\"}\" >/dev/null 2>&1"'
+    echo '      }'
+    echo '    ]'
     echo '  }'
     echo ""
   fi
@@ -182,8 +187,13 @@ else
   "hooks": {
     "PostToolUse": [
       {
-        "type": "command",
-        "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H 'Content-Type: application/json' -d '{\"sessionId\":\"'$CLAUDE_SESSION_ID'\",\"eventType\":\"ToolCall\",\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '$CLAUDE_TOOL_NAME'\",\"project\":\"'$CLAUDE_PROJECT'\"}' >/dev/null 2>&1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://127.0.0.1:37800/api/v1/observations -H 'Content-Type: application/json' -d '{\"sessionId\":\"'$CLAUDE_SESSION_ID'\",\"eventType\":\"ToolCall\",\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '$CLAUDE_TOOL_NAME'\",\"project\":\"'$CLAUDE_PROJECT'\"}' >/dev/null 2>&1"
+          }
+        ]
       }
     ]
   }
@@ -451,8 +461,13 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
   "hooks": {
     "PostToolUse": [
       {
-        "type": "command",
-        "command": "curl -s -X POST http://127.0.0.1:$DAEMON_PORT/api/v1/observations -H 'Content-Type: application/json' -d '{\"sessionId\":\"'\\\$CLAUDE_SESSION_ID'\",\"eventType\":\"ToolCall\",\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '\\\$CLAUDE_TOOL_NAME'\",\"project\":\"'\\\$CLAUDE_PROJECT'\"}' >/dev/null 2>&1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://127.0.0.1:$DAEMON_PORT/api/v1/observations -H 'Content-Type: application/json' -d '{\"sessionId\":\"'\\\$CLAUDE_SESSION_ID'\",\"eventType\":\"ToolCall\",\"source\":\"ClaudeCode\",\"rawContent\":\"Tool: '\\\$CLAUDE_TOOL_NAME'\",\"project\":\"'\\\$CLAUDE_PROJECT'\"}' >/dev/null 2>&1"
+          }
+        ]
       }
     ]
   }

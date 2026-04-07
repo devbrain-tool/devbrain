@@ -369,18 +369,18 @@ if ($health -and $health.status) {
 } else { Check-Fail "Daemon not responding on port $DaemonPort" }
 
 # 9.4 - Dashboard accessible
-$dashboardStatus = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/" -ErrorAction Stop).StatusCode } catch { 0 }
+$dashboardStatus = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/" -UseBasicParsing -ErrorAction Stop).StatusCode } catch { 0 }
 if ($dashboardStatus -eq 200) {
     Check-Pass "Dashboard serving at http://127.0.0.1:$DaemonPort/"
-} else { Check-Fail "Dashboard not accessible (HTTP $dashboardStatus)" }
+} else { Check-Warn "Dashboard not accessible (build dashboard first: cd dashboard && npm run build)" }
 
 # 9.5 - API endpoints working
-$apiObs = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/observations" -ErrorAction Stop).StatusCode } catch { 0 }
+$apiObs = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/observations" -UseBasicParsing -ErrorAction Stop).StatusCode } catch { 0 }
 if ($apiObs -eq 200) {
     Check-Pass "API /observations endpoint responding"
 } else { Check-Fail "API /observations endpoint failed (HTTP $apiObs)" }
 
-$apiSearch = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/search?q=test&limit=1" -ErrorAction Stop).StatusCode } catch { 0 }
+$apiSearch = try { (Invoke-WebRequest "http://127.0.0.1:$DaemonPort/api/v1/search?q=test&limit=1" -UseBasicParsing -ErrorAction Stop).StatusCode } catch { 0 }
 if ($apiSearch -eq 200) {
     Check-Pass "API /search endpoint responding"
 } else { Check-Fail "API /search endpoint failed (HTTP $apiSearch)" }

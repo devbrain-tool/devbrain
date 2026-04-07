@@ -34,10 +34,8 @@ public class StartCommand : Command
         var psi = new ProcessStartInfo
         {
             FileName = daemonPath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
+            UseShellExecute = true,
+            WindowStyle = ProcessWindowStyle.Hidden
         };
 
         try

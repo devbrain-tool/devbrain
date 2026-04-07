@@ -212,6 +212,33 @@ export interface DbQueryResult {
   executionMs: number;
 }
 
+// Setup validation types
+export interface SetupCheckResult {
+  id: string;
+  category: string;
+  name: string;
+  status: 'pass' | 'fail' | 'warn' | 'skip';
+  detail: string;
+  fixable: boolean;
+}
+
+export interface SetupStatusSummary {
+  pass: number;
+  fail: number;
+  warn: number;
+  skip: number;
+}
+
+export interface SetupStatus {
+  checks: SetupCheckResult[];
+  summary: SetupStatusSummary;
+}
+
+export interface SetupFixResult {
+  success: boolean;
+  detail: string;
+}
+
 // Context response
 export interface FileContext {
   path: string;
@@ -325,6 +352,20 @@ export const api = {
         throw new Error(body?.error ?? `API error ${res.status}: ${res.statusText}`);
       }
       return res.json() as Promise<DbQueryResult>;
+    },
+  },
+
+  // Setup validation
+  setup: {
+    status: () => fetchJson<SetupStatus>('/setup/status'),
+
+    fix: async (checkId: string) => {
+      const res = await fetch(`${BASE_URL}/setup/fix/${encodeURIComponent(checkId)}`, {
+        method: 'POST',
+      });
+      const body = await res.json() as SetupFixResult;
+      if (!res.ok) throw new Error(body.detail ?? `API error ${res.status}`);
+      return body;
     },
   },
 };

@@ -13,6 +13,7 @@ import Setup from './pages/Setup';
 import Alerts from './pages/Alerts';
 import Sessions from './pages/Sessions';
 import Replay from './pages/Replay';
+import BlastRadius from './pages/BlastRadius';
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/replay" element={<Replay />} />
+          <Route path="/blast-radius" element={<BlastRadius />} />
         </Routes>
       </main>
     </BrowserRouter>

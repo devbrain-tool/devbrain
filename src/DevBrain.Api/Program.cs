@@ -113,7 +113,9 @@ builder.Services.AddSingleton<IAlertStore>(alertStore);
 builder.Services.AddSingleton(alertChannel);
 builder.Services.AddSingleton<IAlertSink>(alertChannel);
 builder.Services.AddSingleton<ISessionStore>(sessionStore);
-builder.Services.AddSingleton(new DecisionChainBuilder(graphStore, observationStore));
+var chainBuilder = new DecisionChainBuilder(graphStore, observationStore);
+builder.Services.AddSingleton(chainBuilder);
+builder.Services.AddSingleton(new BlastRadiusCalculator(graphStore, deadEndStore, chainBuilder));
 builder.Services.AddSingleton<ILlmService>(llmService);
 builder.Services.AddSingleton(llmService); // concrete type for ResetDailyCounter
 builder.Services.AddSingleton(eventBus);
@@ -157,6 +159,7 @@ app.MapDeadEndEndpoints();
 app.MapAlertEndpoints();
 app.MapSessionEndpoints();
 app.MapReplayEndpoints();
+app.MapBlastRadiusEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
 app.MapSetupEndpoints();

@@ -197,6 +197,23 @@ export interface DejaVuAlert {
   createdAt: string;
 }
 
+// BlastRadius model
+export interface BlastRadiusEntry {
+  filePath: string;
+  riskScore: number;
+  chainLength: number;
+  reason: string;
+  decisionChain: string[];
+}
+
+export interface BlastRadius {
+  sourceFile: string;
+  affectedFiles: BlastRadiusEntry[];
+  deadEndsAtRisk: string[];
+  summary?: string;
+  generatedAt: string;
+}
+
 // DecisionChain model
 export interface DecisionStep {
   observationId: string;
@@ -385,6 +402,10 @@ export const api = {
     });
     if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   },
+
+  // Blast Radius
+  blastRadius: (path: string, hops = 3) =>
+    fetchJson<BlastRadius>(`/blast-radius/${encodeURIComponent(path)}?hops=${hops}`),
 
   // Decision Replay
   replayFile: (path: string) =>

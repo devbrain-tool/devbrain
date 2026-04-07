@@ -7,6 +7,7 @@ const links = [
   { to: '/alerts', label: 'Alerts' },
   { to: '/sessions', label: 'Sessions' },
   { to: '/replay', label: 'Replay' },
+  { to: '/blast-radius', label: 'Blast Radius' },
   { to: '/threads', label: 'Threads' },
   { to: '/search', label: 'Search' },
   { to: '/settings', label: 'Settings' },

@@ -11,6 +11,12 @@ public static class DatabaseEndpoints
         var group = app.MapGroup("/api/v1/db");
 
         group.MapGet("/tables", (ReadOnlyDb db) => Results.Ok(ListTables(db)));
+
+        group.MapGet("/tables/{name}", (string name, ReadOnlyDb db) =>
+        {
+            var detail = GetTableDetail(db, name);
+            return detail is not null ? Results.Ok(detail) : Results.NotFound();
+        });
     }
 
     public static List<TableInfo> ListTables(ReadOnlyDb db)
@@ -42,9 +48,76 @@ public static class DatabaseEndpoints
         return tables;
     }
 
+    public static TableDetail? GetTableDetail(ReadOnlyDb db, string tableName)
+    {
+        // Validate table exists in sqlite_master (prevents injection)
+        using var checkCmd = db.Connection.CreateCommand();
+        checkCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=@name";
+        checkCmd.Parameters.AddWithValue("@name", tableName);
+        if (Convert.ToInt64(checkCmd.ExecuteScalar()) == 0)
+            return null;
+
+        // Row count
+        using var countCmd = db.Connection.CreateCommand();
+        countCmd.CommandText = $"SELECT COUNT(*) FROM \"{tableName}\"";
+        var rowCount = Convert.ToInt64(countCmd.ExecuteScalar());
+
+        // Columns via PRAGMA
+        var columns = new List<ColumnInfo>();
+        using var colCmd = db.Connection.CreateCommand();
+        colCmd.CommandText = $"PRAGMA table_info(\"{tableName}\")";
+        using var colReader = colCmd.ExecuteReader();
+        while (colReader.Read())
+        {
+            columns.Add(new ColumnInfo
+            {
+                Name = colReader.GetString(1),       // name
+                Type = colReader.GetString(2),       // type
+                Nullable = colReader.GetInt32(3) == 0, // notnull (0 = nullable)
+                PrimaryKey = colReader.GetInt32(5) > 0  // pk
+            });
+        }
+
+        // Indexes via PRAGMA
+        var indexes = new List<string>();
+        using var idxCmd = db.Connection.CreateCommand();
+        idxCmd.CommandText = $"PRAGMA index_list(\"{tableName}\")";
+        using var idxReader = idxCmd.ExecuteReader();
+        while (idxReader.Read())
+        {
+            var idxName = idxReader.GetString(1);
+            if (!idxName.StartsWith("sqlite_"))
+                indexes.Add(idxName);
+        }
+
+        return new TableDetail
+        {
+            Name = tableName,
+            RowCount = rowCount,
+            Columns = columns,
+            Indexes = indexes
+        };
+    }
+
     public record TableInfo
     {
         public required string Name { get; init; }
         public required long RowCount { get; init; }
+    }
+
+    public record TableDetail
+    {
+        public required string Name { get; init; }
+        public required long RowCount { get; init; }
+        public required List<ColumnInfo> Columns { get; init; }
+        public required List<string> Indexes { get; init; }
+    }
+
+    public record ColumnInfo
+    {
+        public required string Name { get; init; }
+        public required string Type { get; init; }
+        public required bool PrimaryKey { get; init; }
+        public required bool Nullable { get; init; }
     }
 }

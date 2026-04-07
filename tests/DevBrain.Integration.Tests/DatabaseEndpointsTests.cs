@@ -55,4 +55,39 @@ public class DatabaseEndpointsTests : IDisposable
         var obs = tables.First(t => t.Name == "observations");
         Assert.Equal(1, obs.RowCount);
     }
+
+    [Fact]
+    public void GetTableDetail_ReturnsColumnsAndIndexes()
+    {
+        var detail = DatabaseEndpoints.GetTableDetail(_readOnlyDb, "observations");
+
+        Assert.NotNull(detail);
+        Assert.Equal("observations", detail!.Name);
+        Assert.True(detail.RowCount >= 0);
+
+        var colNames = detail.Columns.Select(c => c.Name).ToList();
+        Assert.Contains("id", colNames);
+        Assert.Contains("session_id", colNames);
+        Assert.Contains("timestamp", colNames);
+
+        var idCol = detail.Columns.First(c => c.Name == "id");
+        Assert.True(idCol.PrimaryKey);
+        Assert.Equal("TEXT", idCol.Type);
+
+        Assert.Contains("idx_obs_thread", detail.Indexes);
+    }
+
+    [Fact]
+    public void GetTableDetail_ReturnsNullForUnknownTable()
+    {
+        var detail = DatabaseEndpoints.GetTableDetail(_readOnlyDb, "nonexistent");
+        Assert.Null(detail);
+    }
+
+    [Fact]
+    public void GetTableDetail_ReturnsNullForInjectionAttempt()
+    {
+        var detail = DatabaseEndpoints.GetTableDetail(_readOnlyDb, "observations; DROP TABLE observations");
+        Assert.Null(detail);
+    }
 }

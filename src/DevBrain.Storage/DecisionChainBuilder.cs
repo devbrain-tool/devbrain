@@ -46,6 +46,46 @@ public class DecisionChainBuilder
         return allNodes;
     }
 
+    /// <summary>
+    /// Traverse causal edges with depth tracking per node. Used by BlastRadiusCalculator
+    /// to compute accurate chain lengths for risk scoring.
+    /// </summary>
+    public async Task<Dictionary<string, (GraphNode Node, int Depth)>> TraverseCausalGraphWithDepth(
+        IEnumerable<GraphNode> seedNodes, int maxHops,
+        IReadOnlyList<string>? edgeTypes = null,
+        HashSet<string>? nodeTypeFilter = null)
+    {
+        var types = edgeTypes ?? CausalEdgeTypes;
+        var filter = nodeTypeFilter ?? DecisionNodeTypes;
+        var result = new Dictionary<string, (GraphNode, int)>();
+
+        // BFS with depth tracking
+        var seedList = seedNodes.ToList();
+        var queue = new Queue<(GraphNode Node, int Depth)>();
+
+        foreach (var seed in seedList)
+        {
+            if (filter.Contains(seed.Type) && result.TryAdd(seed.Id, (seed, 0)))
+                queue.Enqueue((seed, 0));
+        }
+
+        while (queue.Count > 0)
+        {
+            var (current, depth) = queue.Dequeue();
+            if (depth >= maxHops) continue;
+
+            var neighbors = await _graph.GetNeighbors(current.Id, hops: 1, types);
+            foreach (var neighbor in neighbors)
+            {
+                if (!filter.Contains(neighbor.Type)) continue;
+                if (result.TryAdd(neighbor.Id, (neighbor, depth + 1)))
+                    queue.Enqueue((neighbor, depth + 1));
+            }
+        }
+
+        return result;
+    }
+
     public async Task<DecisionChain?> BuildForFile(string filePath, int maxHops = 3)
     {
         var related = await _graph.GetRelatedToFile(filePath);

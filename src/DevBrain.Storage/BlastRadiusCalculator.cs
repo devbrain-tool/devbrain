@@ -27,27 +27,26 @@ public class BlastRadiusCalculator
         if (seedDecisions.Count == 0)
             return new BlastRadius { SourceFile = filePath };
 
-        // Step 2: Traverse causal edges outward from those decisions
-        var allNodes = await _chainBuilder.TraverseCausalGraph(seedDecisions, maxHops);
+        // Step 2: Traverse causal edges with depth tracking
+        var nodesWithDepth = await _chainBuilder.TraverseCausalGraphWithDepth(seedDecisions, maxHops);
 
         // Step 3: For each downstream decision, find connected File nodes
-        var affectedFiles = new Dictionary<string, BlastRadiusEntry>();
-        var sourceFileNorm = filePath.ToLowerInvariant();
+        var affectedFiles = new Dictionary<string, BlastRadiusEntry>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var node in allNodes.Values)
+        foreach (var (nodeId, (node, depth)) in nodesWithDepth)
         {
             var fileNeighbors = await _graph.GetNeighbors(node.Id, hops: 1, edgeType: "references");
             foreach (var fileNode in fileNeighbors)
             {
                 if (fileNode.Type != "File") continue;
                 if (fileNode.Name.Equals(filePath, StringComparison.OrdinalIgnoreCase)) continue;
-
                 if (affectedFiles.ContainsKey(fileNode.Name)) continue;
 
-                var chainLength = EstimateChainLength(seedDecisions, node, allNodes);
-                var deadEndsInChain = allNodes.Values.Count(n => n.Type == "Bug");
+                // Count dead ends relevant to this specific node's chain path
+                var deadEndsForNode = node.Type == "Bug" ? 1 : 0;
+                var chainLength = depth + 1; // depth 0 = direct connection = chain length 1
                 var recency = ComputeRecencyDecay(node.CreatedAt);
-                var risk = ComputeRiskScore(chainLength, deadEndsInChain, recency);
+                var risk = ComputeRiskScore(chainLength, deadEndsForNode, recency);
 
                 affectedFiles[fileNode.Name] = new BlastRadiusEntry
                 {
@@ -55,7 +54,7 @@ public class BlastRadiusCalculator
                     RiskScore = Math.Round(risk, 3),
                     ChainLength = chainLength,
                     Reason = $"Linked via decision: {node.Name}",
-                    DecisionChain = [node.Id]
+                    LinkedDecisionId = node.Id
                 };
             }
         }
@@ -64,7 +63,6 @@ public class BlastRadiusCalculator
         var deadEndsAtRisk = await _deadEnds.FindByFiles([filePath]);
         var deadEndIds = deadEndsAtRisk.Select(d => d.Id).ToList();
 
-        // Sort affected files by risk score descending
         var sortedFiles = affectedFiles.Values
             .OrderByDescending(f => f.RiskScore)
             .ToList();
@@ -77,18 +75,6 @@ public class BlastRadiusCalculator
         };
     }
 
-    private static int EstimateChainLength(
-        List<GraphNode> seedDecisions, GraphNode targetNode,
-        Dictionary<string, GraphNode> allNodes)
-    {
-        // Simple estimate: if the target is a seed decision, length is 1.
-        // Otherwise, assume it's further away.
-        if (seedDecisions.Any(s => s.Id == targetNode.Id))
-            return 1;
-
-        return Math.Min(allNodes.Count, 5);
-    }
-
     private static double ComputeRecencyDecay(DateTime createdAt)
     {
         var daysSince = (DateTime.UtcNow - createdAt).TotalDays;
@@ -98,6 +84,7 @@ public class BlastRadiusCalculator
     internal static double ComputeRiskScore(int chainLength, int deadEndsInChain, double recencyDecay)
     {
         var deadEndMultiplier = 1.0 + (0.5 * deadEndsInChain);
-        return (1.0 / Math.Max(1, chainLength)) * deadEndMultiplier * recencyDecay;
+        var raw = (1.0 / Math.Max(1, chainLength)) * deadEndMultiplier * recencyDecay;
+        return Math.Min(1.0, raw);
     }
 }

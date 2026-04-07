@@ -15,5 +15,5 @@ public record BlastRadiusEntry
     public required double RiskScore { get; init; }
     public required int ChainLength { get; init; }
     public required string Reason { get; init; }
-    public IReadOnlyList<string> DecisionChain { get; init; } = [];
+    public string? LinkedDecisionId { get; init; }
 }

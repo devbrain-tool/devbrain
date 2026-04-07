@@ -97,7 +97,7 @@ public class BlastRadiusCalculatorTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Calculate_FollsCausalChainToFindDistantFiles()
+    public async Task Calculate_FollowsCausalChainToFindDistantFiles()
     {
         // src/A.cs -> dec1 --caused_by--> dec2 -> src/B.cs
         var fileA = await _graphStore.AddNode("File", "src/A.cs");
@@ -113,6 +113,42 @@ public class BlastRadiusCalculatorTests : IAsyncLifetime
 
         Assert.Single(result.AffectedFiles);
         Assert.Equal("src/B.cs", result.AffectedFiles[0].FilePath);
+    }
+
+    [Fact]
+    public async Task Calculate_CloserFilesGetHigherRiskThanDistant()
+    {
+        // src/Root.cs -> dec1 --caused_by--> dec2 --caused_by--> dec3
+        // dec1 references src/Close.cs (1 hop), dec3 references src/Far.cs (2 hops)
+        var rootFile = await _graphStore.AddNode("File", "src/Root.cs");
+        var closeFile = await _graphStore.AddNode("File", "src/Close.cs");
+        var farFile = await _graphStore.AddNode("File", "src/Far.cs");
+        var dec1 = await _graphStore.AddNode("Decision", "Root decision");
+        var dec2 = await _graphStore.AddNode("Decision", "Middle decision");
+        var dec3 = await _graphStore.AddNode("Decision", "Far decision");
+
+        await _graphStore.AddEdge(dec1.Id, rootFile.Id, "references");
+        await _graphStore.AddEdge(dec1.Id, closeFile.Id, "references");
+        await _graphStore.AddEdge(dec3.Id, farFile.Id, "references");
+        await _graphStore.AddEdge(dec2.Id, dec1.Id, "caused_by");
+        await _graphStore.AddEdge(dec3.Id, dec2.Id, "caused_by");
+
+        var result = await _calculator.Calculate("src/Root.cs");
+
+        Assert.Equal(2, result.AffectedFiles.Count);
+
+        var closeEntry = result.AffectedFiles.First(f => f.FilePath == "src/Close.cs");
+        var farEntry = result.AffectedFiles.First(f => f.FilePath == "src/Far.cs");
+        Assert.True(closeEntry.RiskScore >= farEntry.RiskScore,
+            $"Close ({closeEntry.RiskScore}) should be >= Far ({farEntry.RiskScore})");
+    }
+
+    [Fact]
+    public void ComputeRiskScore_ClampedToOneMax()
+    {
+        // With deadEnds and short chain, raw score would exceed 1.0
+        var score = BlastRadiusCalculator.ComputeRiskScore(1, 5, 1.0);
+        Assert.True(score <= 1.0, $"Score {score} should be <= 1.0");
     }
 
     [Fact]

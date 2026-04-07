@@ -11,15 +11,22 @@ public class BlastCommand : Command
         Description = "File path to analyze blast radius for"
     };
 
+    private readonly Option<int?> _hopsOption = new("--hops")
+    {
+        Description = "Traversal depth (1-5, default 3)"
+    };
+
     public BlastCommand() : base("blast", "Show blast radius for a file")
     {
         Add(_pathArg);
+        Add(_hopsOption);
         SetAction(Execute);
     }
 
     private async Task Execute(ParseResult pr)
     {
         var path = pr.GetValue(_pathArg)!;
+        var hops = pr.GetValue(_hopsOption);
         var client = new DevBrainHttpClient();
 
         if (!await client.IsHealthy())
@@ -30,7 +37,9 @@ public class BlastCommand : Command
 
         try
         {
-            var json = await client.GetJson($"/api/v1/blast-radius/{Uri.EscapeDataString(path)}");
+            var url = $"/api/v1/blast-radius/{Uri.EscapeDataString(path)}";
+            if (hops.HasValue) url += $"?hops={hops.Value}";
+            var json = await client.GetJson(url);
 
             var sourceFile = json.GetPropertyOrDefault("sourceFile", path);
 

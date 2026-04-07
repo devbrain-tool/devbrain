@@ -203,7 +203,7 @@ export interface BlastRadiusEntry {
   riskScore: number;
   chainLength: number;
   reason: string;
-  decisionChain: string[];
+  linkedDecisionId?: string;
 }
 
 export interface BlastRadius {

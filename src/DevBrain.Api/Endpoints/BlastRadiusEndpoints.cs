@@ -10,7 +10,7 @@ public static class BlastRadiusEndpoints
 
         group.MapGet("/{*path}", async (string path, BlastRadiusCalculator calculator, int? hops) =>
         {
-            var cappedHops = Math.Min(hops ?? 3, 5);
+            var cappedHops = Math.Clamp(hops ?? 3, 1, 5);
             var result = await calculator.Calculate(path, cappedHops);
             return Results.Ok(result);
         });

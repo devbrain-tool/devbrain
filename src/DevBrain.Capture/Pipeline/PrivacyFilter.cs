@@ -9,15 +9,18 @@ public class PrivacyFilter : IPipelineStage
 {
     private readonly PrivateTagRedactor _privateTagRedactor;
     private readonly SecretPatternRedactor _secretPatternRedactor;
+    private readonly FieldAwareRedactor _fieldAwareRedactor;
     private readonly IgnoreFileRedactor? _ignoreFileRedactor;
 
     public PrivacyFilter(
         PrivateTagRedactor? privateTagRedactor = null,
         SecretPatternRedactor? secretPatternRedactor = null,
+        FieldAwareRedactor? fieldAwareRedactor = null,
         IgnoreFileRedactor? ignoreFileRedactor = null)
     {
         _privateTagRedactor = privateTagRedactor ?? new PrivateTagRedactor();
         _secretPatternRedactor = secretPatternRedactor ?? new SecretPatternRedactor();
+        _fieldAwareRedactor = fieldAwareRedactor ?? new FieldAwareRedactor();
         _ignoreFileRedactor = ignoreFileRedactor;
     }
 
@@ -27,7 +30,6 @@ public class PrivacyFilter : IPipelineStage
         {
             await foreach (var obs in input.ReadAllAsync(ct))
             {
-                // Drop observations matching ignore rules
                 if (_ignoreFileRedactor is not null && obs.FilesInvolved.Count > 0
                     && _ignoreFileRedactor.ShouldIgnore(obs.FilesInvolved))
                 {
@@ -44,7 +46,17 @@ public class PrivacyFilter : IPipelineStage
                     summary = _secretPatternRedactor.Redact(summary);
                 }
 
-                await output.WriteAsync(obs with { RawContent = rawContent, Summary = summary }, ct);
+                // Layer 1: blanket regex on metadata
+                var metadata = _secretPatternRedactor.Redact(obs.Metadata);
+                // Layer 2: field-aware redaction on metadata
+                metadata = _fieldAwareRedactor.Redact(obs.ToolName, metadata);
+
+                await output.WriteAsync(obs with
+                {
+                    RawContent = rawContent,
+                    Summary = summary,
+                    Metadata = metadata,
+                }, ct);
             }
         }
         finally

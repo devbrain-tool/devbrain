@@ -51,7 +51,8 @@ describe("DaemonManager", () => {
 
   describe("start()", () => {
     it("spawns devbrain-daemon as a detached process", async () => {
-      mockFetch.mockResolvedValue({ ok: true });
+      // First fetch = health check (daemon not running), reject
+      mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
       await daemon.start();
       expect(mockSpawn).toHaveBeenCalledWith(
         "/mock/bin/devbrain-daemon",
@@ -60,8 +61,15 @@ describe("DaemonManager", () => {
       );
     });
 
+    it("skips spawn if daemon is already running", async () => {
+      // Health check succeeds = daemon already running
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      await daemon.start();
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
     it("redirects stderr to a log file", async () => {
-      mockFetch.mockResolvedValue({ ok: true });
+      mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
       await daemon.start();
       const spawnCall = mockSpawn.mock.calls[0];
       const options = spawnCall[2] as child_process.SpawnOptions;
@@ -73,7 +81,7 @@ describe("DaemonManager", () => {
     });
 
     it("writes PID file after spawning", async () => {
-      mockFetch.mockResolvedValue({ ok: true });
+      mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
       await daemon.start();
       expect(mockWriteFileSync).toHaveBeenCalledWith(
         "/mock/.devbrain/daemon.pid",
@@ -85,7 +93,7 @@ describe("DaemonManager", () => {
       mockExistsSync.mockImplementation((p) =>
         String(p) === "/mock/.devbrain/stopped"
       );
-      mockFetch.mockResolvedValue({ ok: true });
+      mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
       await daemon.start();
       expect(mockUnlinkSync).toHaveBeenCalledWith("/mock/.devbrain/stopped");
     });

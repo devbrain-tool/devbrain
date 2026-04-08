@@ -46,6 +46,17 @@ export class DaemonManager {
   }
 
   async start(): Promise<void> {
+    // Check if daemon is already running (e.g. started by CLI or previous session)
+    try {
+      const res = await fetch("http://127.0.0.1:37800/api/v1/health");
+      if (res.ok) {
+        // Daemon is already running — adopt it instead of spawning a new one
+        return;
+      }
+    } catch {
+      // Not running — proceed to spawn
+    }
+
     const sentinel = stoppedSentinelPath();
     if (fs.existsSync(sentinel)) {
       fs.unlinkSync(sentinel);

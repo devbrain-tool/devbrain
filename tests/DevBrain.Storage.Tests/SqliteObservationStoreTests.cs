@@ -179,9 +179,9 @@ public class SqliteObservationStoreTests : IDisposable
     }
 
     [Fact]
-    public void SchemaManager_GetSchemaVersion_ReturnsOne()
+    public void SchemaManager_GetSchemaVersion_ReturnsLatest()
     {
         var version = SchemaManager.GetSchemaVersion(_connection);
-        Assert.Equal(1, version);
+        Assert.Equal(2, version);
     }
 }

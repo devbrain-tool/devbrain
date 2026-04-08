@@ -21,9 +21,11 @@ public class SqliteObservationStore : IObservationStore
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO observations (id, session_id, thread_id, parent_id, timestamp, project, branch,
-                event_type, source, raw_content, summary, tags, files_involved, created_at)
+                event_type, source, raw_content, summary, tags, files_involved, created_at,
+                metadata, tool_name, outcome, duration_ms, turn_number)
             VALUES (@id, @sessionId, @threadId, @parentId, @timestamp, @project, @branch,
-                @eventType, @source, @rawContent, @summary, @tags, @filesInvolved, @createdAt)
+                @eventType, @source, @rawContent, @summary, @tags, @filesInvolved, @createdAt,
+                @metadata, @toolName, @outcome, @durationMs, @turnNumber)
             """;
 
         cmd.Parameters.AddWithValue("@id", observation.Id);
@@ -40,6 +42,11 @@ public class SqliteObservationStore : IObservationStore
         cmd.Parameters.AddWithValue("@tags", JsonSerializer.Serialize(observation.Tags));
         cmd.Parameters.AddWithValue("@filesInvolved", JsonSerializer.Serialize(observation.FilesInvolved));
         cmd.Parameters.AddWithValue("@createdAt", observation.CreatedAt.ToString("o"));
+        cmd.Parameters.AddWithValue("@metadata", observation.Metadata);
+        cmd.Parameters.AddWithValue("@toolName", (object?)observation.ToolName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@outcome", (object?)observation.Outcome ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@durationMs", (object?)observation.DurationMs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@turnNumber", (object?)observation.TurnNumber ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();
         return observation;
@@ -76,6 +83,16 @@ public class SqliteObservationStore : IObservationStore
         {
             clauses.Add("thread_id = @threadId");
             cmd.Parameters.AddWithValue("@threadId", filter.ThreadId);
+        }
+        if (filter.ToolName is not null)
+        {
+            clauses.Add("tool_name = @toolName");
+            cmd.Parameters.AddWithValue("@toolName", filter.ToolName);
+        }
+        if (filter.Outcome is not null)
+        {
+            clauses.Add("outcome = @outcome");
+            cmd.Parameters.AddWithValue("@outcome", filter.Outcome);
         }
         if (filter.After is not null)
         {
@@ -119,7 +136,9 @@ public class SqliteObservationStore : IObservationStore
         cmd.CommandText = """
             UPDATE observations SET
                 thread_id = @threadId, summary = @summary, tags = @tags,
-                files_involved = @filesInvolved
+                files_involved = @filesInvolved, metadata = @metadata,
+                tool_name = @toolName, outcome = @outcome,
+                duration_ms = @durationMs, turn_number = @turnNumber
             WHERE id = @id
             """;
 
@@ -128,6 +147,11 @@ public class SqliteObservationStore : IObservationStore
         cmd.Parameters.AddWithValue("@summary", (object?)observation.Summary ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@tags", JsonSerializer.Serialize(observation.Tags));
         cmd.Parameters.AddWithValue("@filesInvolved", JsonSerializer.Serialize(observation.FilesInvolved));
+        cmd.Parameters.AddWithValue("@metadata", observation.Metadata);
+        cmd.Parameters.AddWithValue("@toolName", (object?)observation.ToolName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@outcome", (object?)observation.Outcome ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@durationMs", (object?)observation.DurationMs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@turnNumber", (object?)observation.TurnNumber ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();
     }
@@ -206,21 +230,43 @@ public class SqliteObservationStore : IObservationStore
         return results;
     }
 
-    private static Observation MapObservation(SqliteDataReader reader) => new()
+    private static Observation MapObservation(SqliteDataReader reader)
     {
-        Id = reader.GetString(reader.GetOrdinal("id")),
-        SessionId = reader.GetString(reader.GetOrdinal("session_id")),
-        ThreadId = reader.IsDBNull(reader.GetOrdinal("thread_id")) ? null : reader.GetString(reader.GetOrdinal("thread_id")),
-        ParentId = reader.IsDBNull(reader.GetOrdinal("parent_id")) ? null : reader.GetString(reader.GetOrdinal("parent_id")),
-        Timestamp = DateTime.Parse(reader.GetString(reader.GetOrdinal("timestamp")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-        Project = reader.GetString(reader.GetOrdinal("project")),
-        Branch = reader.IsDBNull(reader.GetOrdinal("branch")) ? null : reader.GetString(reader.GetOrdinal("branch")),
-        EventType = Enum.Parse<EventType>(reader.GetString(reader.GetOrdinal("event_type"))),
-        Source = Enum.Parse<CaptureSource>(reader.GetString(reader.GetOrdinal("source"))),
-        RawContent = reader.GetString(reader.GetOrdinal("raw_content")),
-        Summary = reader.IsDBNull(reader.GetOrdinal("summary")) ? null : reader.GetString(reader.GetOrdinal("summary")),
-        Tags = JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("tags"))) ?? [],
-        FilesInvolved = JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("files_involved"))) ?? [],
-        CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("created_at")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
-    };
+        var obs = new Observation
+        {
+            Id = reader.GetString(reader.GetOrdinal("id")),
+            SessionId = reader.GetString(reader.GetOrdinal("session_id")),
+            ThreadId = reader.IsDBNull(reader.GetOrdinal("thread_id")) ? null : reader.GetString(reader.GetOrdinal("thread_id")),
+            ParentId = reader.IsDBNull(reader.GetOrdinal("parent_id")) ? null : reader.GetString(reader.GetOrdinal("parent_id")),
+            Timestamp = DateTime.Parse(reader.GetString(reader.GetOrdinal("timestamp")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            Project = reader.GetString(reader.GetOrdinal("project")),
+            Branch = reader.IsDBNull(reader.GetOrdinal("branch")) ? null : reader.GetString(reader.GetOrdinal("branch")),
+            EventType = Enum.Parse<EventType>(reader.GetString(reader.GetOrdinal("event_type"))),
+            Source = Enum.Parse<CaptureSource>(reader.GetString(reader.GetOrdinal("source"))),
+            RawContent = reader.GetString(reader.GetOrdinal("raw_content")),
+            Summary = reader.IsDBNull(reader.GetOrdinal("summary")) ? null : reader.GetString(reader.GetOrdinal("summary")),
+            Tags = JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("tags"))) ?? [],
+            FilesInvolved = JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("files_involved"))) ?? [],
+            CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("created_at")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+        };
+
+        try
+        {
+            var metaOrd = reader.GetOrdinal("metadata");
+            obs = obs with
+            {
+                Metadata = reader.IsDBNull(metaOrd) ? "{}" : reader.GetString(metaOrd),
+                ToolName = reader.IsDBNull(reader.GetOrdinal("tool_name")) ? null : reader.GetString(reader.GetOrdinal("tool_name")),
+                Outcome = reader.IsDBNull(reader.GetOrdinal("outcome")) ? null : reader.GetString(reader.GetOrdinal("outcome")),
+                DurationMs = reader.IsDBNull(reader.GetOrdinal("duration_ms")) ? null : reader.GetInt32(reader.GetOrdinal("duration_ms")),
+                TurnNumber = reader.IsDBNull(reader.GetOrdinal("turn_number")) ? null : reader.GetInt32(reader.GetOrdinal("turn_number")),
+            };
+        }
+        catch (IndexOutOfRangeException)
+        {
+            // Pre-migration DB — new columns don't exist yet
+        }
+
+        return obs;
+    }
 }

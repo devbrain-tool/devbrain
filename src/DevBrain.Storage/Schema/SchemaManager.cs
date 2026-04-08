@@ -181,6 +181,38 @@ public static class SchemaManager
             );
             """;
         cmd.ExecuteNonQuery();
+
+        MigrateToV2(connection);
+    }
+
+    private static void MigrateToV2(SqliteConnection connection)
+    {
+        using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = "PRAGMA table_info(observations)";
+        using var reader = checkCmd.ExecuteReader();
+        var columns = new HashSet<string>();
+        while (reader.Read())
+            columns.Add(reader.GetString(1));
+
+        if (columns.Contains("metadata"))
+            return;
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            ALTER TABLE observations ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
+            ALTER TABLE observations ADD COLUMN tool_name TEXT;
+            ALTER TABLE observations ADD COLUMN outcome TEXT;
+            ALTER TABLE observations ADD COLUMN duration_ms INTEGER;
+            ALTER TABLE observations ADD COLUMN turn_number INTEGER;
+
+            CREATE INDEX IF NOT EXISTS idx_obs_tool_name ON observations(tool_name);
+            CREATE INDEX IF NOT EXISTS idx_obs_outcome ON observations(outcome);
+            """;
+        cmd.ExecuteNonQuery();
+
+        using var versionCmd = connection.CreateCommand();
+        versionCmd.CommandText = "UPDATE _meta SET value = '2' WHERE key = 'schema_version'";
+        versionCmd.ExecuteNonQuery();
     }
 
     public static int GetSchemaVersion(SqliteConnection connection)

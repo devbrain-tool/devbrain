@@ -274,7 +274,7 @@ New events still populate `rawContent` with a human-readable summary string. Thi
 
 ## Smart Truncation
 
-Applied by the `devbrain-hook` binary before POSTing to the daemon. Different limits per tool type to optimize for what's actually useful:
+Applied by the daemon's `EventIngestionService` after receiving the raw event from the hook binary. Different limits per tool type to optimize for what's actually useful:
 
 | Tool | `tool_input` limit | `tool_output` limit | Rationale |
 |---|---|---|---|
@@ -301,18 +301,17 @@ For `UserPrompt` events: prompt text stored in full (no truncation — user prom
 
 ### Per-Turn Extraction (on `Stop` hook)
 
-When the `Stop` hook fires:
+When the `Stop` hook fires, the hook binary forwards the event (including `transcriptPath`) to the daemon. The daemon's `EventIngestionService` then:
 
-1. Hook script reads `transcript_path` from stdin
-2. Reads the **last few lines** of the JSONL file (seek to end, read backwards to find last complete JSON object)
-3. Extracts from the last turn entry:
+1. Reads the **last few lines** of the JSONL file at `transcriptPath` (seek to end, read backwards to find last complete JSON object)
+2. Extracts from the last turn entry:
    - `tokens_in`, `tokens_out`
    - `cache_read_tokens`, `cache_write_tokens`
    - `latency_ms`
    - `model`
-4. POSTs a `TurnComplete` event with these metrics
+3. Stores these as the `TurnComplete` observation's metadata and sets `duration_ms` from `latency_ms`
 
-This is lightweight — only reads the tail of the file, not the whole thing.
+This is lightweight — only reads the tail of the file, not the whole thing. The file is on the same filesystem since daemon and Claude Code run on the same machine.
 
 ### Session Archive (on `SessionEnd` hook)
 

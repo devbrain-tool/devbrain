@@ -37,6 +37,11 @@ var readOnlyDb = new ReadOnlyDb(readOnlyConnection);
 
 var observationStore = new SqliteObservationStore(connection);
 var graphStore = new SqliteGraphStore(connection);
+var deadEndStore = new SqliteDeadEndStore(connection);
+var alertStore = new SqliteAlertStore(connection);
+var sessionStore = new SqliteSessionStore(connection);
+var growthStore = new SqliteGrowthStore(connection);
+var alertChannel = new DevBrain.Api.Services.AlertChannel();
 
 // ── Vector store (placeholder) ───────────────────────────────────────────────
 var vectorStore = new NullVectorStore();
@@ -75,13 +80,17 @@ var writer = new Writer(observationStore, vectorStore, obs => eventBus.Publish(o
 var pipeline = new PipelineOrchestrator(normalizer, enricher, tagger, privacyFilter, writer);
 
 // ── Agents ───────────────────────────────────────────────────────────────────
-var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, settings);
+var agentContext = new AgentContext(observationStore, graphStore, vectorStore, llmService, settings, deadEndStore);
 var agents = new IIntelligenceAgent[]
 {
     new LinkerAgent(),
     new DeadEndAgent(),
     new BriefingAgent(),
-    new CompressionAgent()
+    new CompressionAgent(),
+    new DecisionChainAgent(),
+    new DejaVuAgent(alertStore, alertChannel),
+    new StorytellerAgent(sessionStore),
+    new GrowthAgent(growthStore)
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
@@ -101,6 +110,15 @@ builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton<IObservationStore>(observationStore);
 builder.Services.AddSingleton<IGraphStore>(graphStore);
 builder.Services.AddSingleton<IVectorStore>(vectorStore);
+builder.Services.AddSingleton<IDeadEndStore>(deadEndStore);
+builder.Services.AddSingleton<IAlertStore>(alertStore);
+builder.Services.AddSingleton(alertChannel);
+builder.Services.AddSingleton<IAlertSink>(alertChannel);
+builder.Services.AddSingleton<ISessionStore>(sessionStore);
+builder.Services.AddSingleton<IGrowthStore>(growthStore);
+var chainBuilder = new DecisionChainBuilder(graphStore, observationStore);
+builder.Services.AddSingleton(chainBuilder);
+builder.Services.AddSingleton(new BlastRadiusCalculator(graphStore, deadEndStore, chainBuilder));
 builder.Services.AddSingleton<ILlmService>(llmService);
 builder.Services.AddSingleton(llmService); // concrete type for ResetDailyCounter
 builder.Services.AddSingleton(eventBus);
@@ -141,6 +159,11 @@ app.MapSettingsEndpoints();
 app.MapAdminEndpoints();
 app.MapThreadEndpoints();
 app.MapDeadEndEndpoints();
+app.MapAlertEndpoints();
+app.MapSessionEndpoints();
+app.MapReplayEndpoints();
+app.MapBlastRadiusEndpoints();
+app.MapGrowthEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
 app.MapSetupEndpoints();

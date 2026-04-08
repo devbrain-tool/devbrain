@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+ln -sf /opt/devbrain/resources/bin/devbrain /usr/local/bin/devbrain
+ln -sf /opt/devbrain/resources/bin/devbrain-daemon /usr/local/bin/devbrain-daemon
+
+mkdir -p /etc/xdg/autostart
+cp /opt/devbrain/devbrain.desktop /etc/xdg/autostart/devbrain.desktop 2>/dev/null || true

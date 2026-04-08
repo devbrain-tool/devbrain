@@ -118,6 +118,67 @@ public static class SchemaManager
                 INSERT INTO observations_fts(rowid, summary, raw_content, tags)
                 VALUES (new.rowid, new.summary, new.raw_content, new.tags);
             END;
+
+            CREATE TABLE IF NOT EXISTS deja_vu_alerts (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                matched_dead_end_id TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                message TEXT NOT NULL,
+                strategy TEXT NOT NULL,
+                dismissed INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dva_dedup ON deja_vu_alerts(thread_id, matched_dead_end_id);
+            CREATE INDEX IF NOT EXISTS idx_dva_active ON deja_vu_alerts(dismissed);
+
+            CREATE TABLE IF NOT EXISTS session_summaries (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL UNIQUE,
+                narrative TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                duration_seconds INTEGER NOT NULL,
+                observation_count INTEGER NOT NULL,
+                files_touched INTEGER NOT NULL,
+                dead_ends_hit INTEGER NOT NULL,
+                phases TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ss_session ON session_summaries(session_id);
+
+            CREATE TABLE IF NOT EXISTS developer_metrics (
+                id TEXT PRIMARY KEY,
+                dimension TEXT NOT NULL,
+                value REAL NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dm_dimension ON developer_metrics(dimension, period_start);
+
+            CREATE TABLE IF NOT EXISTS milestones (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                achieved_at TEXT NOT NULL,
+                observation_id TEXT,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ms_type ON milestones(type, achieved_at);
+
+            CREATE TABLE IF NOT EXISTS growth_reports (
+                id TEXT PRIMARY KEY,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                metrics TEXT NOT NULL,
+                milestones TEXT NOT NULL,
+                narrative TEXT,
+                generated_at TEXT NOT NULL
+            );
             """;
         cmd.ExecuteNonQuery();
     }

@@ -37,7 +37,8 @@ public class LinkerAgentTests : IAsyncLifetime
             Graph: _graphStore,
             Vectors: new NullVectorStore(),
             Llm: new NullLlmService(),
-            Settings: new Settings()
+            Settings: new Settings(),
+            DeadEnds: new NullDeadEndStore()
         );
     }
 
@@ -64,13 +65,11 @@ public class LinkerAgentTests : IAsyncLifetime
         Assert.Equal(2, results.Count);
         Assert.All(results, r => Assert.Equal(AgentOutputType.EdgeCreated, r.Type));
 
-        // Verify file nodes were created
         var fileNodes = await _graphStore.GetNodesByType("File");
         Assert.Equal(2, fileNodes.Count);
         Assert.Contains(fileNodes, n => n.Name == "src/Program.cs");
         Assert.Contains(fileNodes, n => n.Name == "src/Startup.cs");
 
-        // Verify observation node was created
         var decisionNodes = await _graphStore.GetNodesByType("Decision");
         Assert.Single(decisionNodes);
         Assert.Equal("Architecture decision", decisionNodes[0].Name);
@@ -80,7 +79,6 @@ public class LinkerAgentTests : IAsyncLifetime
     [Fact]
     public async Task Run_DoesNotDuplicateExistingFileNodes()
     {
-        // Pre-create a file node
         await _graphStore.AddNode("File", "src/Program.cs");
 
         var obs1 = new Observation
@@ -116,12 +114,10 @@ public class LinkerAgentTests : IAsyncLifetime
 
         Assert.Equal(2, results.Count);
 
-        // Verify only one File node exists (no duplicate)
         var fileNodes = await _graphStore.GetNodesByType("File");
         Assert.Single(fileNodes);
         Assert.Equal("src/Program.cs", fileNodes[0].Name);
 
-        // Verify both observation node types were created
         var decisionNodes = await _graphStore.GetNodesByType("Decision");
         Assert.Single(decisionNodes);
 
@@ -152,27 +148,5 @@ public class LinkerAgentTests : IAsyncLifetime
 
         var fileNodes = await _graphStore.GetNodesByType("File");
         Assert.Empty(fileNodes);
-    }
-
-    private class NullVectorStore : IVectorStore
-    {
-        public Task Index(string id, string text, VectorCategory category) => Task.CompletedTask;
-        public Task<IReadOnlyList<VectorMatch>> Search(string query, int topK = 20, VectorCategory? filter = null)
-            => Task.FromResult<IReadOnlyList<VectorMatch>>(Array.Empty<VectorMatch>());
-        public Task Remove(string id) => Task.CompletedTask;
-        public Task Rebuild() => Task.CompletedTask;
-        public Task<long> GetSizeBytes() => Task.FromResult(0L);
-    }
-
-    private class NullLlmService : ILlmService
-    {
-        public bool IsLocalAvailable => false;
-        public bool IsCloudAvailable => false;
-        public int CloudRequestsToday => 0;
-        public int QueueDepth => 0;
-        public Task<LlmResult> Submit(LlmTask task, CancellationToken ct = default)
-            => Task.FromResult(new LlmResult { TaskId = task.Id, Success = false });
-        public Task<float[]> Embed(string text, CancellationToken ct = default)
-            => Task.FromResult(Array.Empty<float>());
     }
 }

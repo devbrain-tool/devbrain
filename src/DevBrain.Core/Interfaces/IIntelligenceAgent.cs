@@ -8,7 +8,8 @@ public record AgentContext(
     IGraphStore Graph,
     IVectorStore Vectors,
     ILlmService Llm,
-    Settings Settings
+    Settings Settings,
+    IDeadEndStore DeadEnds
 );
 
 public interface IIntelligenceAgent

@@ -14,12 +14,34 @@ public class StopCommand : Command
 
     private static async Task Execute(ParseResult pr)
     {
-        var pidPath = Path.Combine(SettingsLoader.ResolveDataPath("~/.devbrain"), "daemon.pid");
+        var dataPath = SettingsLoader.ResolveDataPath("~/.devbrain");
+        var pidPath = Path.Combine(dataPath, "daemon.pid");
 
         if (!File.Exists(pidPath))
         {
             ConsoleFormatter.PrintWarning("No PID file found. Daemon may not be running.");
             return;
+        }
+
+        // If tray app is running, write stopped sentinel so it doesn't auto-restart
+        var trayLockPath = Path.Combine(dataPath, "tray.lock");
+        if (File.Exists(trayLockPath))
+        {
+            var trayPidText = (await File.ReadAllTextAsync(trayLockPath)).Trim();
+            if (int.TryParse(trayPidText, out var trayPid))
+            {
+                try
+                {
+                    Process.GetProcessById(trayPid);
+                    // Tray is alive — write sentinel to prevent auto-restart
+                    var sentinelPath = Path.Combine(dataPath, "stopped");
+                    await File.WriteAllTextAsync(sentinelPath, "stopped by cli");
+                }
+                catch (ArgumentException)
+                {
+                    // Tray is dead — no sentinel needed
+                }
+            }
         }
 
         var pidText = (await File.ReadAllTextAsync(pidPath)).Trim();
@@ -33,6 +55,16 @@ public class StopCommand : Command
         try
         {
             var process = Process.GetProcessById(pid);
+
+            // Verify this is actually the daemon process (PID may have been recycled)
+            var processName = process.ProcessName.ToLowerInvariant();
+            if (!processName.Contains("devbrain-daemon") && !processName.Contains("devbrain.api"))
+            {
+                ConsoleFormatter.PrintWarning(
+                    $"PID {pid} belongs to '{process.ProcessName}', not devbrain-daemon. Stale PID file removed.");
+                return;
+            }
+
             process.Kill(entireProcessTree: true);
             process.WaitForExit(5000);
             ConsoleFormatter.PrintSuccess($"Daemon (PID {pid}) stopped.");

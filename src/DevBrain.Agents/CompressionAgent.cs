@@ -1,5 +1,6 @@
 namespace DevBrain.Agents;
 
+using DevBrain.Core;
 using DevBrain.Core.Enums;
 using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
@@ -28,7 +29,7 @@ public class CompressionAgent : IIntelligenceAgent
                 AgentName = Name,
                 Priority = Priority.Low,
                 Type = LlmTaskType.Summarization,
-                Prompt = $"Summarize the following development observation concisely:\n\n{obs.RawContent}",
+                Prompt = Prompts.Fill(Prompts.CompressionSummarization, ("CONTENT", obs.RawContent)),
                 Preference = LlmPreference.PreferLocal
             };
 

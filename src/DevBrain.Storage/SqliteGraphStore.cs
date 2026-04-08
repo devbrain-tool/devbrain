@@ -74,6 +74,18 @@ public class SqliteGraphStore : IGraphStore
         return nodes;
     }
 
+    public async Task<GraphNode?> GetNodeBySourceId(string sourceId)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT id, type, name, data, source_id, created_at FROM graph_nodes WHERE source_id = @sourceId LIMIT 1";
+        cmd.Parameters.AddWithValue("@sourceId", sourceId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+            return ReadNode(reader);
+        return null;
+    }
+
     public async Task RemoveNode(string id)
     {
         // Delete all connected edges first (cascade)
@@ -157,6 +169,50 @@ public class SqliteGraphStore : IGraphStore
         cmd.Parameters.AddWithValue("@hops", hops);
         if (edgeType is not null)
             cmd.Parameters.AddWithValue("@edgeType", edgeType);
+
+        var nodes = new List<GraphNode>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            nodes.Add(ReadNode(reader));
+        }
+        return nodes;
+    }
+
+    public async Task<IReadOnlyList<GraphNode>> GetNeighbors(string nodeId, int hops, IReadOnlyList<string> edgeTypes)
+    {
+        if (edgeTypes.Count == 0)
+            return await GetNeighbors(nodeId, hops);
+
+        var edgeParams = new List<string>();
+        for (int i = 0; i < edgeTypes.Count; i++)
+            edgeParams.Add($"@et{i}");
+        var inClause = $"AND e.type IN ({string.Join(", ", edgeParams)})";
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $@"
+            WITH RECURSIVE neighbors(node_id, depth, path) AS (
+                SELECT @startId, 0, @startId
+                UNION
+                SELECT
+                    CASE WHEN e.source_id = n.node_id THEN e.target_id ELSE e.source_id END,
+                    n.depth + 1,
+                    n.path || ',' || CASE WHEN e.source_id = n.node_id THEN e.target_id ELSE e.source_id END
+                FROM neighbors n
+                JOIN graph_edges e ON (e.source_id = n.node_id OR e.target_id = n.node_id)
+                    {inClause}
+                WHERE n.depth < @hops
+                    AND instr(n.path, CASE WHEN e.source_id = n.node_id THEN e.target_id ELSE e.source_id END) = 0
+            )
+            SELECT DISTINCT gn.id, gn.type, gn.name, gn.data, gn.source_id, gn.created_at
+            FROM neighbors nb
+            JOIN graph_nodes gn ON gn.id = nb.node_id
+            WHERE nb.node_id != @startId";
+
+        cmd.Parameters.AddWithValue("@startId", nodeId);
+        cmd.Parameters.AddWithValue("@hops", hops);
+        for (int i = 0; i < edgeTypes.Count; i++)
+            cmd.Parameters.AddWithValue($"@et{i}", edgeTypes[i]);
 
         var nodes = new List<GraphNode>();
         using var reader = await cmd.ExecuteReaderAsync();

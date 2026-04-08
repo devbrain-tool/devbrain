@@ -1,6 +1,7 @@
 namespace DevBrain.Agents;
 
 using System.Collections.Concurrent;
+using Cronos;
 using DevBrain.Core.Enums;
 using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
@@ -74,7 +75,7 @@ public class AgentScheduler : BackgroundService
             {
                 AgentSchedule.OnEvent onEvent =>
                     bufferedEvents.Count > 0 && onEvent.Types.Any(t => bufferedEventTypes.Contains(t)),
-                AgentSchedule.Cron => IsCronDue(agent.Name),
+                AgentSchedule.Cron cron => IsCronDue(agent.Name, cron.Expression),
                 AgentSchedule.Idle idle => IsIdle(idle.After),
                 _ => false
             };
@@ -89,11 +90,13 @@ public class AgentScheduler : BackgroundService
             await Task.WhenAll(tasks);
     }
 
-    private bool IsCronDue(string agentName)
+    private bool IsCronDue(string agentName, string cronExpression)
     {
         if (_lastRunTimes.TryGetValue(agentName, out var lastRun))
         {
-            return (DateTime.UtcNow - lastRun).TotalHours >= 1;
+            var expression = CronExpression.Parse(cronExpression);
+            var nextOccurrence = expression.GetNextOccurrence(lastRun, TimeZoneInfo.Utc);
+            return nextOccurrence.HasValue && nextOccurrence.Value <= DateTime.UtcNow;
         }
         return true;
     }
@@ -116,6 +119,34 @@ public class AgentScheduler : BackgroundService
 
             _logger.LogInformation("Agent {AgentName} completed with {Count} outputs",
                 agent.Name, results.Count);
+
+            // Persist dead-end outputs
+            foreach (var output in results)
+            {
+                if (output.Type == AgentOutputType.DeadEndDetected && output.Data is DeadEndOutputData data)
+                {
+                    try
+                    {
+                        var deadEnd = new DeadEnd
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            ThreadId = data.ThreadId,
+                            Project = data.Project,
+                            Description = output.Content,
+                            Approach = "Repeated file edits after errors",
+                            Reason = "Heuristic: 3+ edits to same file in thread with errors",
+                            FilesInvolved = data.Files,
+                            DetectedAt = DateTime.UtcNow
+                        };
+
+                        await _ctx.DeadEnds.Add(deadEnd);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to persist dead-end output");
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {

@@ -51,7 +51,7 @@ public class DeadEndAgent : IIntelligenceAgent
                 outputs.Add(new AgentOutput(
                     AgentOutputType.DeadEndDetected,
                     description,
-                    new { ThreadId = error.ThreadId, Files = fileChanges }));
+                    new DeadEndOutputData(error.ThreadId, error.Project, fileChanges)));
             }
         }
 

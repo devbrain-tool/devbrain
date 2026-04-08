@@ -185,6 +185,95 @@ export interface DeadEnd {
   createdAt: string;
 }
 
+// DejaVuAlert model
+export interface DejaVuAlert {
+  id: string;
+  threadId: string;
+  matchedDeadEndId: string;
+  confidence: number;
+  message: string;
+  strategy: string;
+  dismissed: boolean;
+  createdAt: string;
+}
+
+// BlastRadius model
+export interface BlastRadiusEntry {
+  filePath: string;
+  riskScore: number;
+  chainLength: number;
+  reason: string;
+  linkedDecisionId?: string;
+}
+
+export interface BlastRadius {
+  sourceFile: string;
+  affectedFiles: BlastRadiusEntry[];
+  deadEndsAtRisk: string[];
+  summary?: string;
+  generatedAt: string;
+}
+
+// DecisionChain model
+export interface DecisionStep {
+  observationId: string;
+  summary: string;
+  timestamp: string;
+  stepType: string;
+  filesInvolved: string[];
+}
+
+export interface DecisionChain {
+  id: string;
+  rootNodeId: string;
+  narrative: string;
+  steps: DecisionStep[];
+  generatedAt: string;
+}
+
+// SessionSummary model
+export interface SessionSummary {
+  id: string;
+  sessionId: string;
+  narrative: string;
+  outcome: string;
+  duration: string;
+  observationCount: number;
+  filesTouched: number;
+  deadEndsHit: number;
+  phases: string[];
+  createdAt: string;
+}
+
+// Growth Tracker models
+export interface DeveloperMetric {
+  id: string;
+  dimension: string;
+  value: number;
+  periodStart: string;
+  periodEnd: string;
+  createdAt: string;
+}
+
+export interface GrowthMilestone {
+  id: string;
+  type: string;
+  description: string;
+  achievedAt: string;
+  observationId?: string;
+  createdAt: string;
+}
+
+export interface GrowthReport {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  metrics: DeveloperMetric[];
+  milestones: GrowthMilestone[];
+  narrative?: string;
+  generatedAt: string;
+}
+
 // Database explorer types
 export interface DbTableInfo {
   name: string;
@@ -330,6 +419,45 @@ export const api = {
     const qs = sp.toString();
     return fetchJson<DeadEnd[]>(`/dead-ends${qs ? `?${qs}` : ''}`);
   },
+
+  // Alerts
+  alerts: () => fetchJson<DejaVuAlert[]>('/alerts'),
+
+  alertsAll: () => fetchJson<DejaVuAlert[]>('/alerts/all'),
+
+  alertDismiss: async (id: string) => {
+    const res = await fetch(`${BASE_URL}/alerts/${encodeURIComponent(id)}/dismiss`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
+  },
+
+  // Blast Radius
+  blastRadius: (path: string, hops = 3) =>
+    fetchJson<BlastRadius>(`/blast-radius/${encodeURIComponent(path)}?hops=${hops}`),
+
+  // Decision Replay
+  replayFile: (path: string) =>
+    fetchJson<DecisionChain>(`/replay/file/${encodeURIComponent(path)}`),
+
+  replayDecision: (nodeId: string) =>
+    fetchJson<DecisionChain>(`/replay/decision/${encodeURIComponent(nodeId)}`),
+
+  // Growth
+  growth: () => fetchJson<GrowthReport>('/growth'),
+
+  growthHistory: (dimension: string, weeks = 12) =>
+    fetchJson<DeveloperMetric[]>(`/growth/history?dimension=${encodeURIComponent(dimension)}&weeks=${weeks}`),
+
+  growthMilestones: (limit = 50) =>
+    fetchJson<GrowthMilestone[]>(`/growth/milestones?limit=${limit}`),
+
+  // Sessions
+  sessions: (limit = 50) =>
+    fetchJson<SessionSummary[]>(`/sessions?limit=${limit}`),
+
+  sessionStory: (id: string) =>
+    fetchJson<SessionSummary>(`/sessions/${encodeURIComponent(id)}/story`),
 
   // Context
   fileContext: (path: string) =>

@@ -192,6 +192,20 @@ public class SqliteObservationStore : IObservationStore
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task<IReadOnlyList<Observation>> GetSessionObservations(string sessionId, int limit = 500)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM observations WHERE session_id = @sessionId ORDER BY timestamp ASC LIMIT @limit";
+        cmd.Parameters.AddWithValue("@sessionId", sessionId);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        var results = new List<Observation>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(MapObservation(reader));
+        return results;
+    }
+
     private static Observation MapObservation(SqliteDataReader reader) => new()
     {
         Id = reader.GetString(reader.GetOrdinal("id")),

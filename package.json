@@ -1,0 +1,8 @@
+{
+  "name": "devbrain",
+  "private": true,
+  "workspaces": [
+    "dashboard",
+    "packages/tray"
+  ]
+}

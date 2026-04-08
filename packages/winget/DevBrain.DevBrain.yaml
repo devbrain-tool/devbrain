@@ -1,0 +1,23 @@
+PackageIdentifier: DevBrain.DevBrain
+PackageVersion: 1.0.0
+DefaultLocale: en-US
+PackageName: DevBrain
+Publisher: DevBrain
+PublisherUrl: https://github.com/devbrain/devbrain
+License: Apache-2.0
+ShortDescription: Developer's second brain - captures coding sessions, builds knowledge graph
+Tags:
+  - developer-tools
+  - productivity
+  - knowledge-graph
+  - ai
+InstallerType: exe
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/devbrain/devbrain/releases/download/v1.0.0/DevBrain-Setup-1.0.0-x64.exe
+    InstallerSha256: PLACEHOLDER_SHA256
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+ManifestType: singleton
+ManifestVersion: 1.6.0

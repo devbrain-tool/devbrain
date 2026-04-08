@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=DevBrain
+Exec=/opt/devbrain/devbrain-tray
+Icon=/opt/devbrain/resources/assets/icon.png
+Comment=Developer's second brain
+Categories=Development;
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
+Terminal=false

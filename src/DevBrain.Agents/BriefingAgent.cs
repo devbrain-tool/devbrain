@@ -69,14 +69,7 @@ public class BriefingAgent : IIntelligenceAgent
 
     private static string BuildPrompt(IReadOnlyList<Observation> observations)
     {
-        var lines = new List<string>
-        {
-            "Generate a daily development briefing based on the following observations from the last 24 hours.",
-            "Summarize key decisions, errors encountered, files changed, and overall progress.",
-            "Format as markdown with sections.",
-            "",
-            "Observations:"
-        };
+        var lines = new List<string>();
 
         foreach (var obs in observations)
         {
@@ -85,6 +78,6 @@ public class BriefingAgent : IIntelligenceAgent
                 lines.Add($"  Files: {string.Join(", ", obs.FilesInvolved)}");
         }
 
-        return string.Join("\n", lines);
+        return Prompts.Fill(Prompts.BriefingGeneration, ("OBSERVATIONS", string.Join("\n", lines)));
     }
 }

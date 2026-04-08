@@ -25,6 +25,7 @@ root.Add(new PurgeCommand());
 root.Add(new RebuildCommand());
 root.Add(new ServiceCommand());
 root.Add(new UpdateCommand());
+root.Add(new HookCommand());
 
 var result = root.Parse(args);
 return await result.InvokeAsync();

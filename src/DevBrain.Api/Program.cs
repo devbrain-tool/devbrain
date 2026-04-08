@@ -1,9 +1,11 @@
 using DevBrain.Agents;
 using DevBrain.Api;
 using DevBrain.Api.Endpoints;
+using DevBrain.Api.Services;
 using DevBrain.Api.Setup;
 using DevBrain.Capture;
 using DevBrain.Capture.Pipeline;
+using DevBrain.Capture.Privacy;
 using DevBrain.Core;
 using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
@@ -90,7 +92,8 @@ var agents = new IIntelligenceAgent[]
     new DecisionChainAgent(),
     new DejaVuAgent(alertStore, alertChannel),
     new StorytellerAgent(sessionStore),
-    new GrowthAgent(growthStore)
+    new GrowthAgent(growthStore),
+    new RetentionCleanupJob()
 };
 
 // ── ASP.NET Core host ────────────────────────────────────────────────────────
@@ -143,6 +146,13 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<AgentScheduler>())
 
 builder.WebHost.UseUrls($"http://127.0.0.1:{settings.Daemon.Port}");
 
+// Event ingestion service for rich capture
+builder.Services.AddSingleton<FieldAwareRedactor>();
+builder.Services.AddSingleton(sp => new EventIngestionService(
+    sp.GetRequiredService<IObservationStore>(),
+    new SecretPatternRedactor(),
+    sp.GetRequiredService<FieldAwareRedactor>()));
+
 var app = builder.Build();
 
 // ── Static files for dashboard ───────────────────────────────────────────────
@@ -167,6 +177,7 @@ app.MapGrowthEndpoints();
 app.MapContextEndpoints();
 app.MapDatabaseEndpoints();
 app.MapSetupEndpoints();
+app.MapEventEndpoints();
 
 // Dashboard SPA fallback
 app.MapFallbackToFile("index.html");

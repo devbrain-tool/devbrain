@@ -11,7 +11,8 @@ public enum AgentOutputType
     StoryGenerated,
     DecisionChainBuilt,
     GrowthReportGenerated,
-    MilestoneAchieved
+    MilestoneAchieved,
+    RetentionCleanup
 }
 
 public record AgentOutput(AgentOutputType Type, string Content, object? Data = null);

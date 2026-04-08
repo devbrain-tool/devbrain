@@ -19,6 +19,7 @@ export class HealthMonitor extends EventEmitter {
   }
 
   start(): void {
+    this.check(); // Immediate first check
     this.timer = setInterval(() => this.check(), this.pollIntervalMs);
   }
 

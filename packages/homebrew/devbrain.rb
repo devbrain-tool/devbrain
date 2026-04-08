@@ -20,7 +20,8 @@ class Devbrain < Formula
   def install
     bin.install "devbrain"
     bin.install "devbrain-daemon"
-    prefix.install "DevBrain.app" if OS.mac?
+    # Electron tray app is distributed via DMG/Cask, not through this formula.
+    # This formula installs CLI binaries only.
   end
 
   # No Homebrew service block - the Electron tray app owns daemon lifecycle.

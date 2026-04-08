@@ -95,6 +95,10 @@ export class DaemonManager {
   }
 
   async stop(): Promise<void> {
+    // Write sentinel BEFORE killing so the exit handler doesn't auto-restart
+    const sentinel = stoppedSentinelPath();
+    fs.writeFileSync(sentinel, "stopped");
+
     const pid = pidPath();
 
     if (fs.existsSync(pid)) {

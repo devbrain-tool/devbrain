@@ -4,7 +4,6 @@ on:
   workflow_run:
     workflows: ["Build & Test"]
     types: [completed]
-    branches: [main, master]
 
 jobs:
   check:
@@ -15,7 +14,10 @@ jobs:
     steps:
       - id: check_tag
         run: |
-          if [[ "${{ github.event.workflow_run.head_branch }}" == v* ]]; then
+          # workflow_run.head_branch contains the tag name for tag-triggered runs
+          # Build & Test triggers on tags: ['v*'], so check if the triggering ref was a tag
+          if [[ "${{ github.event.workflow_run.event }}" == "push" ]] && \
+             [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9] ]]; then
             echo "is_tag=true" >> $GITHUB_OUTPUT
           else
             echo "is_tag=false" >> $GITHUB_OUTPUT

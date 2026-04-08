@@ -28,6 +28,10 @@ tests/
 dashboard/                       # React + TypeScript SPA (Vite), 7 pages
 ```
 
+## Build & Toolchain
+
+When working on Rust projects on Windows, prefer MSVC toolchain in release mode. Debug mode causes Wasmtime stack overflows. Avoid GNU toolchain as it requires gcc/dlltool which are often missing. Always check toolchain before attempting builds.
+
 ## Build & Test Commands
 
 ```bash
@@ -37,6 +41,10 @@ cd dashboard && npm ci && npm run build  # Build dashboard
 dotnet run --project src/DevBrain.Api/   # Run daemon (localhost:37800)
 dotnet run --project src/DevBrain.Cli/ -- status  # Run CLI
 ```
+
+## Development Workflow
+
+After implementing any feature, run a full build/compile check before committing. Do not batch multiple features without intermediate build verification. For Rust: `cargo check` after each module. For .NET: `dotnet build` after each project change.
 
 ## Architecture Rules
 
@@ -134,6 +142,18 @@ refactor: extract graph traversal into helper
 - **Settings PUT endpoint** is a no-op — accepts but doesn't persist changes.
 - **LLM daily counter** resets at midnight UTC but has no persistence across daemon restarts.
 - **No ICaptureAdapter interface** in Core — adapter contract is defined inline in the Capture project.
+
+## Code Quality
+
+For code reviews: always check for division-by-zero, SQL injection, race conditions, bounds validation, and correct API signatures before marking a feature complete. Do not wait for user to catch these in review.
+
+## Deployment
+
+When working with Azure deployments, always verify: 1) Environment variables are set before deploy, 2) Database migrations are idempotent, 3) DNS and health check endpoints are configured. Never assume previous deploy state is clean.
+
+## Windows Development
+
+When running background services or daemons on Windows, use UseShellExecute approach rather than stream draining for process management. Always kill processes on conflicting ports before restart.
 
 ## Security Notes
 

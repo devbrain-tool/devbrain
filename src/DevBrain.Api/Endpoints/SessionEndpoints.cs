@@ -19,10 +19,10 @@ public static class SessionEndpoints
         // Get session story by session ID
         group.MapGet("/{sessionId}/story", async (string sessionId, ISessionStore sessionStore) =>
         {
-            var summary = await sessionStore.GetBySessionId(id);
+            var summary = await sessionStore.GetBySessionId(sessionId);
             return summary is not null
                 ? Results.Ok(summary)
-                : Results.NotFound(new { error = $"No story for session '{id}'" });
+                : Results.NotFound(new { error = $"No story for session '{sessionId}'" });
         });
 
         // Get session detail with observations

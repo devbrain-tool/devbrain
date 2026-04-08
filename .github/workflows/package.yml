@@ -1,0 +1,158 @@
+name: Package & Publish
+
+on:
+  workflow_run:
+    workflows: ["Build & Test"]
+    types: [completed]
+    branches: [main, master]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      is_tag: ${{ steps.check_tag.outputs.is_tag }}
+    steps:
+      - id: check_tag
+        run: |
+          if [[ "${{ github.event.workflow_run.head_branch }}" == v* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+  electron-build:
+    needs: check
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            electron-args: --win --x64
+            artifact-pattern: "*.exe"
+          - os: macos-latest
+            rid: osx-x64
+            electron-args: --mac --x64
+            artifact-pattern: "*.dmg"
+          - os: ubuntu-latest
+            rid: linux-x64
+            electron-args: --linux --x64
+            artifact-pattern: "*.deb"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: devbrain-${{ matrix.rid }}
+          path: packages/tray/resources/bin/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard-dist
+          path: packages/tray/resources/wwwroot/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract .NET binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd packages/tray/resources/bin
+          for f in *.tar.gz; do [ -f "$f" ] && tar xzf "$f" && rm "$f"; done
+          chmod +x devbrain devbrain-daemon 2>/dev/null || true
+
+      - name: Extract .NET binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cd packages/tray/resources/bin
+          for f in *.zip; do [ -f "$f" ] && 7z x "$f" -y && rm "$f"; done
+
+      - name: Install dependencies
+        run: cd packages/tray && npm ci
+
+      - name: Build TypeScript
+        run: cd packages/tray && npm run build
+
+      - name: Build Electron package
+        run: cd packages/tray && npx electron-builder ${{ matrix.electron-args }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electron-${{ matrix.rid }}
+          path: packages/tray/dist/${{ matrix.artifact-pattern }}
+
+  publish-homebrew:
+    needs: [check, electron-build]
+    if: needs.check.outputs.is_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update Homebrew formula
+        uses: Justintime50/homebrew-releaser@v1
+        with:
+          homebrew_owner: devbrain
+          homebrew_tap: homebrew-tap
+          formula_folder: Formula
+          github_token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          commit_owner: devbrain-bot
+          commit_email: bot@devbrain.dev
+          install: |
+            bin.install "devbrain"
+            bin.install "devbrain-daemon"
+          test: |
+            assert_match "devbrain", shell_output("#{bin}/devbrain --version")
+
+  publish-winget:
+    needs: [check, electron-build]
+    if: needs.check.outputs.is_tag == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: electron-win-x64
+          path: installer/
+
+      - name: Submit to winget
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: DevBrain.DevBrain
+          installers-regex: '\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+
+  publish-apt:
+    needs: [check, electron-build]
+    if: needs.check.outputs.is_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: electron-linux-x64
+          path: deb-package/
+
+      - name: Setup GPG
+        run: echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Update APT repository
+        run: |
+          mkdir -p apt-repo/pool/main
+          cp deb-package/*.deb apt-repo/pool/main/
+          cd apt-repo
+          dpkg-scanpackages pool/main /dev/null | gzip -9c > Packages.gz
+          apt-ftparchive release . > Release
+          gpg --batch --yes --armor --detach-sign -o Release.gpg Release
+          gpg --batch --yes --clearsign -o InRelease Release
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apt-repo
+          destination_dir: apt

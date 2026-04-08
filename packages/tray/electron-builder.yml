@@ -1,6 +1,7 @@
 appId: com.devbrain.tray
 productName: DevBrain
 copyright: Copyright 2026 DevBrain
+electronVersion: 36.9.5
 
 directories:
   output: release

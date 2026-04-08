@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Diagnostics;
 using DevBrain.Cli.Output;
+using DevBrain.Core;
 
 namespace DevBrain.Cli.Commands;
 
@@ -19,6 +20,29 @@ public class StartCommand : Command
         {
             ConsoleFormatter.PrintWarning("Daemon is already running.");
             return;
+        }
+
+        // Check if tray app is managing the daemon
+        var dataPath = SettingsLoader.ResolveDataPath("~/.devbrain");
+        var trayLockPath = Path.Combine(dataPath, "tray.lock");
+
+        if (File.Exists(trayLockPath))
+        {
+            var lockPidText = (await File.ReadAllTextAsync(trayLockPath)).Trim();
+            if (int.TryParse(lockPidText, out var trayPid))
+            {
+                try
+                {
+                    Process.GetProcessById(trayPid);
+                    ConsoleFormatter.PrintWarning(
+                        "Daemon is managed by the tray app. Use the tray menu to start it.");
+                    return;
+                }
+                catch (ArgumentException)
+                {
+                    // Tray process is dead — stale lock, continue normally
+                }
+            }
         }
 
         var cliDir = AppContext.BaseDirectory;

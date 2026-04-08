@@ -1,5 +1,6 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execFileSync } from "child_process";
 import * as fs from "fs";
+import * as path from "path";
 import {
   binaryPath,
   pidPath,
@@ -61,9 +62,13 @@ export class DaemonManager {
 
     const daemonBin = binaryPath("devbrain-daemon");
 
+    // Redirect stderr to a log file for debugging startup failures
+    const logFile = path.join(logs, "daemon-stderr.log");
+    const stderrStream = fs.openSync(logFile, "a");
+
     this.process = spawn(daemonBin, [], {
       detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", stderrStream],
     });
 
     this.process.unref();
@@ -99,18 +104,20 @@ export class DaemonManager {
     const sentinel = stoppedSentinelPath();
     fs.writeFileSync(sentinel, "stopped");
 
-    const pid = pidPath();
+    const pidFile = pidPath();
 
-    if (fs.existsSync(pid)) {
-      const pidValue = parseInt(fs.readFileSync(pid, "utf-8").trim(), 10);
+    if (fs.existsSync(pidFile)) {
+      const pidValue = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
 
-      try {
-        process.kill(pidValue);
-      } catch {
-        // Process already dead
+      if (this.isDaemonProcess(pidValue)) {
+        try {
+          process.kill(pidValue);
+        } catch {
+          // Process already dead
+        }
       }
 
-      fs.unlinkSync(pid);
+      fs.unlinkSync(pidFile);
     }
 
     this.process = null;
@@ -123,16 +130,42 @@ export class DaemonManager {
   }
 
   isRunning(): boolean {
-    const pid = pidPath();
-    if (!fs.existsSync(pid)) return false;
+    const pidFile = pidPath();
+    if (!fs.existsSync(pidFile)) return false;
 
-    const pidValue = parseInt(fs.readFileSync(pid, "utf-8").trim(), 10);
+    const pidValue = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
 
-    try {
-      process.kill(pidValue, 0);
-      return true;
-    } catch {
+    if (!this.isDaemonProcess(pidValue)) {
+      // PID was recycled to a different process — stale PID file
+      try { fs.unlinkSync(pidFile); } catch { /* best-effort */ }
       return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Verify that the process at the given PID is actually devbrain-daemon.
+   * Prevents killing an unrelated process after PID reuse.
+   */
+  private isDaemonProcess(pid: number): boolean {
+    try {
+      if (process.platform === "win32") {
+        const output = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+          encoding: "utf-8",
+          timeout: 5000,
+        });
+        return output.toLowerCase().includes("devbrain-daemon");
+      } else {
+        // Unix: read /proc/<pid>/comm or use ps
+        const output = execFileSync("ps", ["-p", String(pid), "-o", "comm="], {
+          encoding: "utf-8",
+          timeout: 5000,
+        });
+        return output.trim().includes("devbrain-daemon");
+      }
+    } catch {
+      return false; // Process doesn't exist
     }
   }
 }

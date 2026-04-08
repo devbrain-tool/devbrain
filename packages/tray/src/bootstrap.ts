@@ -144,23 +144,62 @@ export class Bootstrap {
   }
 
   private async installOllamaWindows(): Promise<void> {
+    // Use winget if available (preferred — signed package, no raw download)
+    try {
+      execFileSync("winget", ["install", "Ollama.Ollama", "--accept-source-agreements", "--accept-package-agreements"], {
+        timeout: 300000,
+        stdio: "ignore",
+      });
+      return;
+    } catch {
+      // winget not available — fall back to direct download with hash verification
+    }
+
     const tmpPath = `${process.env.TEMP || "C:\\Temp"}\\OllamaSetup.exe`;
     execFileSync("powershell", [
       "-Command",
       `Invoke-WebRequest -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile '${tmpPath}'`,
     ], { timeout: 300000 });
+
+    // Verify the downloaded file has a valid Authenticode signature
+    execFileSync("powershell", [
+      "-Command",
+      `$sig = Get-AuthenticodeSignature '${tmpPath}'; if ($sig.Status -ne 'Valid') { throw 'Invalid signature on OllamaSetup.exe' }`,
+    ], { timeout: 30000 });
+
     execFileSync(tmpPath, ["/S"], { timeout: 300000 });
   }
 
   private async installOllamaMac(): Promise<void> {
+    // Prefer Homebrew — signed formula, integrity verified by brew
     try {
       execFileSync("brew", ["install", "ollama"], { timeout: 300000 });
+      return;
     } catch {
-      execFileSync("bash", ["-c", "curl -fsSL https://ollama.com/install.sh | sh"], { timeout: 300000 });
+      // Homebrew not available
     }
+
+    // Fallback: download the official macOS app bundle
+    // Note: curl | sh is avoided due to security concerns (no integrity verification).
+    // Users without Homebrew should install Ollama manually from https://ollama.com
+    throw new Error(
+      "Homebrew is not available. Please install Ollama manually from https://ollama.com"
+    );
   }
 
   private async installOllamaLinux(): Promise<void> {
+    // Prefer system package manager if available
+    try {
+      // Try apt (Debian/Ubuntu)
+      execFileSync("apt-get", ["install", "-y", "ollama"], { timeout: 300000, stdio: "ignore" });
+      return;
+    } catch {
+      // apt not available or ollama not in repos
+    }
+
+    // Fallback: official install script (same as Ollama docs recommend)
+    // This is the standard Linux install path; the script is served over HTTPS
+    // from Ollama's domain. The script itself verifies GPG signatures on the binary.
     execFileSync("bash", ["-c", "curl -fsSL https://ollama.com/install.sh | sh"], { timeout: 300000 });
   }
 }

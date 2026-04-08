@@ -2,6 +2,9 @@ appId: com.devbrain.tray
 productName: DevBrain
 copyright: Copyright 2026 DevBrain
 
+directories:
+  output: release
+
 extraResources:
   - from: resources/bin/
     to: bin/

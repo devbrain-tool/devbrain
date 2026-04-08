@@ -55,6 +55,16 @@ public class StopCommand : Command
         try
         {
             var process = Process.GetProcessById(pid);
+
+            // Verify this is actually the daemon process (PID may have been recycled)
+            var processName = process.ProcessName.ToLowerInvariant();
+            if (!processName.Contains("devbrain-daemon") && !processName.Contains("devbrain.api"))
+            {
+                ConsoleFormatter.PrintWarning(
+                    $"PID {pid} belongs to '{process.ProcessName}', not devbrain-daemon. Stale PID file removed.");
+                return;
+            }
+
             process.Kill(entireProcessTree: true);
             process.WaitForExit(5000);
             ConsoleFormatter.PrintSuccess($"Daemon (PID {pid}) stopped.");

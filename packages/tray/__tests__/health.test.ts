@@ -24,10 +24,11 @@ describe("HealthMonitor", () => {
     expect(monitor.state).toBe("starting");
   });
 
-  it("transitions to 'healthy' on successful health check", async () => {
+  it("performs immediate health check on start", async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     monitor.start();
-    await jest.advanceTimersByTimeAsync(1000);
+    // Flush the immediate async check()
+    await jest.advanceTimersByTimeAsync(0);
     expect(monitor.state).toBe("healthy");
     expect(states).toEqual(["healthy"]);
   });
@@ -35,37 +36,37 @@ describe("HealthMonitor", () => {
   it("transitions to 'unhealthy' on failed health check", async () => {
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     monitor.start();
-    await jest.advanceTimersByTimeAsync(1000);
+    await jest.advanceTimersByTimeAsync(0);
     expect(monitor.state).toBe("unhealthy");
     expect(states).toEqual(["unhealthy"]);
   });
 
   it("transitions healthy -> unhealthy -> healthy", async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true })
-      .mockRejectedValueOnce(new Error("ECONNREFUSED"))
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ ok: true })     // immediate check
+      .mockRejectedValueOnce(new Error("ECONNREFUSED")) // 1s interval
+      .mockResolvedValueOnce({ ok: true });    // 2s interval
     monitor.start();
-    await jest.advanceTimersByTimeAsync(1000);
-    await jest.advanceTimersByTimeAsync(1000);
-    await jest.advanceTimersByTimeAsync(1000);
+    await jest.advanceTimersByTimeAsync(0);     // immediate
+    await jest.advanceTimersByTimeAsync(1000);  // first interval
+    await jest.advanceTimersByTimeAsync(1000);  // second interval
     expect(states).toEqual(["healthy", "unhealthy", "healthy"]);
   });
 
   it("does not emit duplicate states", async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ ok: true })   // immediate check
+      .mockResolvedValueOnce({ ok: true });  // 1s interval (same state)
     monitor.start();
+    await jest.advanceTimersByTimeAsync(0);
     await jest.advanceTimersByTimeAsync(1000);
-    await jest.advanceTimersByTimeAsync(1000);
-    expect(states).toEqual(["healthy"]);
+    expect(states).toEqual(["healthy"]); // Only one emission
   });
 
   it("stop() clears the polling interval", async () => {
     mockFetch.mockResolvedValue({ ok: true });
     monitor.start();
-    await jest.advanceTimersByTimeAsync(1000);
+    await jest.advanceTimersByTimeAsync(0);
     monitor.stop();
     mockFetch.mockReset();
     await jest.advanceTimersByTimeAsync(5000);

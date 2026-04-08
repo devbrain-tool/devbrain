@@ -87,7 +87,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: electron-${{ matrix.rid }}
-          path: packages/tray/dist/${{ matrix.artifact-pattern }}
+          path: packages/tray/release/${{ matrix.artifact-pattern }}
 
   publish-homebrew:
     needs: [check, electron-build]
@@ -140,7 +140,12 @@ jobs:
           path: deb-package/
 
       - name: Setup GPG
-        run: echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" | gpg --batch --import
+        run: |
+          GPG_KEY_FILE="$(mktemp)"
+          echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" > "$GPG_KEY_FILE"
+          chmod 600 "$GPG_KEY_FILE"
+          gpg --batch --import "$GPG_KEY_FILE"
+          rm -f "$GPG_KEY_FILE"
 
       - name: Update APT repository
         run: |

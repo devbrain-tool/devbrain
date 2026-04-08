@@ -58,8 +58,7 @@ linux:
       arch: [x64]
   icon: assets/icon.png
   category: Development
-  desktop:
-    StartupWMClass: DevBrain
+  executableName: devbrain-tray
 
 deb:
   depends:

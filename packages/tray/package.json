@@ -2,6 +2,8 @@
   "name": "devbrain-tray",
   "version": "1.0.0",
   "private": true,
+  "description": "DevBrain system tray app — manages daemon lifecycle and bootstrapping",
+  "author": "DevBrain",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",

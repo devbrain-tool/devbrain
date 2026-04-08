@@ -8,6 +8,8 @@ public record ObservationFilter
     public string? Project { get; init; }
     public EventType? EventType { get; init; }
     public string? ThreadId { get; init; }
+    public string? ToolName { get; init; }
+    public string? Outcome { get; init; }
     public DateTime? After { get; init; }
     public DateTime? Before { get; init; }
     public int Limit { get; init; } = 50;

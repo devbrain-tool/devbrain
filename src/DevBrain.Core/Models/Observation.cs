@@ -18,4 +18,11 @@ public record Observation
     public IReadOnlyList<string> Tags { get; init; } = [];
     public IReadOnlyList<string> FilesInvolved { get; init; } = [];
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+
+    // Rich capture fields
+    public string Metadata { get; init; } = "{}";
+    public string? ToolName { get; init; }
+    public string? Outcome { get; init; }
+    public int? DurationMs { get; init; }
+    public int? TurnNumber { get; init; }
 }

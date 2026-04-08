@@ -76,7 +76,7 @@ jobs:
           for f in *.zip; do [ -f "$f" ] && 7z x "$f" -y && rm "$f"; done
 
       - name: Install dependencies
-        run: npm ci --prefix packages/tray --install-strategy=nested
+        run: cd packages/tray && npm install --install-strategy=nested
 
       - name: Build TypeScript
         run: cd packages/tray && npm run build

@@ -12,7 +12,7 @@ extraResources:
     filter:
       - "**/*"
   - from: resources/wwwroot/
-    to: wwwroot/
+    to: bin/wwwroot/
     filter:
       - "**/*"
   - from: assets/

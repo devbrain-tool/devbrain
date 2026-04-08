@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "description": "DevBrain system tray app — manages daemon lifecycle and bootstrapping",
-  "author": "DevBrain",
+  "author": {
+    "name": "DevBrain",
+    "email": "devbrain@users.noreply.github.com"
+  },
+  "license": "Apache-2.0",
   "homepage": "https://github.com/devbrain-tool/devbrain",
   "main": "dist/main.js",
   "scripts": {

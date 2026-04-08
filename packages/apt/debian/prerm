@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+pkill -f devbrain-daemon 2>/dev/null || true
+pkill -f devbrain-tray 2>/dev/null || true
+
+rm -f /usr/local/bin/devbrain
+rm -f /usr/local/bin/devbrain-daemon
+rm -f /etc/xdg/autostart/devbrain.desktop
+
+# ~/.devbrain/ is intentionally preserved (user data)

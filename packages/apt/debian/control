@@ -1,0 +1,12 @@
+Package: devbrain
+Version: 1.0.0
+Section: devel
+Priority: optional
+Architecture: amd64
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0
+Maintainer: DevBrain <devbrain@users.noreply.github.com>
+Homepage: https://github.com/devbrain/devbrain
+Description: Developer's second brain
+ DevBrain is a background daemon that passively captures AI coding sessions,
+ builds a knowledge graph of decisions and dead ends, and surfaces proactive
+ insights including morning briefings, pattern detection, and semantic search.

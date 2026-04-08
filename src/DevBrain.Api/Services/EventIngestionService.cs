@@ -8,23 +8,27 @@ using DevBrain.Capture.Truncation;
 using DevBrain.Core.Enums;
 using DevBrain.Core.Interfaces;
 using DevBrain.Core.Models;
+using Microsoft.Extensions.Logging;
 
 public class EventIngestionService
 {
     private readonly IObservationStore _store;
     private readonly SecretPatternRedactor _secretRedactor;
     private readonly FieldAwareRedactor _fieldRedactor;
-    private readonly ConcurrentDictionary<string, int> _turnCounters = new();
+    private readonly ILogger<EventIngestionService> _logger;
+    private readonly ConcurrentDictionary<string, (int Count, DateTime LastSeen)> _turnCounters = new();
     private readonly string _transcriptArchiveDir;
 
     public EventIngestionService(
         IObservationStore store,
         SecretPatternRedactor secretRedactor,
-        FieldAwareRedactor fieldRedactor)
+        FieldAwareRedactor fieldRedactor,
+        ILogger<EventIngestionService> logger)
     {
         _store = store;
         _secretRedactor = secretRedactor;
         _fieldRedactor = fieldRedactor;
+        _logger = logger;
         _transcriptArchiveDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".devbrain", "transcripts");
@@ -32,8 +36,14 @@ public class EventIngestionService
 
     public async Task<Observation?> IngestEvent(JsonElement payload)
     {
-        var hookEvent = payload.GetProperty("hookEvent").GetString()!;
-        var sessionId = payload.GetProperty("session_id").GetString()!;
+        if (!payload.TryGetProperty("hookEvent", out var heProp) || !payload.TryGetProperty("session_id", out var siProp))
+        {
+            _logger.LogWarning("Event payload missing hookEvent or session_id");
+            return null;
+        }
+
+        var hookEvent = heProp.GetString() ?? "";
+        var sessionId = siProp.GetString() ?? "";
         var cwd = payload.TryGetProperty("cwd", out var cwdProp) ? cwdProp.GetString() ?? "" : "";
 
         var eventType = MapEventType(hookEvent);
@@ -70,12 +80,17 @@ public class EventIngestionService
         int? durationMs = null;
 
         if (hookEvent == "SessionStart")
-            _turnCounters[sessionId] = 0;
+            _turnCounters[sessionId] = (0, DateTime.UtcNow);
+
+        // Cleanup stale session counters (no SessionEnd received)
+        CleanupStaleSessions();
 
         if (hookEvent is "Stop" or "StopFailure")
         {
-            var count = _turnCounters.AddOrUpdate(sessionId, 1, (_, v) => v + 1);
-            turnNumber = count;
+            var entry = _turnCounters.AddOrUpdate(sessionId,
+                (1, DateTime.UtcNow),
+                (_, old) => (old.Count + 1, DateTime.UtcNow));
+            turnNumber = entry.Count;
 
             if (payload.TryGetProperty("transcript_path", out var tp))
             {
@@ -93,7 +108,7 @@ public class EventIngestionService
         }
         else
         {
-            turnNumber = _turnCounters.GetValueOrDefault(sessionId);
+            turnNumber = _turnCounters.TryGetValue(sessionId, out var tc) ? tc.Count : null;
         }
 
         if (hookEvent == "SessionEnd" && payload.TryGetProperty("transcript_path", out var tpEnd))
@@ -107,7 +122,10 @@ public class EventIngestionService
                     var aggregates = TranscriptParser.ParseSessionAggregates(transcriptPath);
                     metadata = EnrichWithSessionAggregates(metadata, aggregates);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to archive/parse transcript for session {SessionId}", sessionId);
+                }
             }
             _turnCounters.TryRemove(sessionId, out _);
         }
@@ -329,5 +347,16 @@ public class EventIngestionService
         if (toolInput.TryGetProperty("file_path", out var fp) && fp.GetString() is { } fpath) files.Add(fpath);
         if (toolInput.TryGetProperty("path", out var p) && p.GetString() is { } ppath) files.Add(ppath);
         return files;
+    }
+
+    /// <summary>Remove session counters not updated in 4+ hours (session died without SessionEnd).</summary>
+    private void CleanupStaleSessions()
+    {
+        var cutoff = DateTime.UtcNow.AddHours(-4);
+        foreach (var kv in _turnCounters)
+        {
+            if (kv.Value.LastSeen < cutoff)
+                _turnCounters.TryRemove(kv.Key, out _);
+        }
     }
 }

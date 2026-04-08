@@ -15,7 +15,7 @@ public static class EventEndpoints
             var observation = await ingestion.IngestEvent(payload);
             return observation is not null
                 ? Results.Created($"/api/v1/observations/{observation.Id}", new { id = observation.Id })
-                : Results.BadRequest(new { error = $"Unknown hook event: {he.GetString()}" });
+                : Results.NoContent(); // Unknown or skipped event — valid request, nothing to store
         });
     }
 }

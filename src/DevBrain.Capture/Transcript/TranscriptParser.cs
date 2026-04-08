@@ -27,15 +27,12 @@ public static class TranscriptParser
         if (!File.Exists(transcriptPath))
             return null;
 
-        var lines = File.ReadAllLines(transcriptPath);
+        // Stream the file — only keep the last non-empty line in memory
         string? lastLine = null;
-        for (var i = lines.Length - 1; i >= 0; i--)
+        foreach (var line in File.ReadLines(transcriptPath))
         {
-            if (!string.IsNullOrWhiteSpace(lines[i]))
-            {
-                lastLine = lines[i];
-                break;
-            }
+            if (!string.IsNullOrWhiteSpace(line))
+                lastLine = line;
         }
 
         if (lastLine is null) return null;

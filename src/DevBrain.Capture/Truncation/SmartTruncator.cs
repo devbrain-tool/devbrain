@@ -57,7 +57,8 @@ public static class SmartTruncator
         if (element.TryGetProperty("path", out var p))
             dict["path"] = p.GetString();
 
-        return JsonDocument.Parse(JsonSerializer.Serialize(dict)).RootElement;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(dict));
+        return doc.RootElement.Clone();
     }
 
     private static JsonElement TruncateStringProperties(JsonElement element, int limit)
@@ -82,6 +83,7 @@ public static class SmartTruncator
             }
         }
 
-        return JsonDocument.Parse(JsonSerializer.Serialize(dict)).RootElement;
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(dict));
+        return doc.RootElement.Clone();
     }
 }

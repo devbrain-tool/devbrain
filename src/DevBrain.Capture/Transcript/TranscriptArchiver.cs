@@ -9,7 +9,12 @@ public static class TranscriptArchiver
 
         Directory.CreateDirectory(archiveDir);
 
-        var destPath = Path.Combine(archiveDir, $"{sessionId}.jsonl");
+        // Sanitize sessionId to prevent path traversal
+        var safeId = Path.GetFileName(sessionId);
+        if (string.IsNullOrEmpty(safeId) || safeId != sessionId)
+            throw new ArgumentException($"Invalid session ID: {sessionId}");
+
+        var destPath = Path.Combine(archiveDir, $"{safeId}.jsonl");
         File.Copy(transcriptPath, destPath, overwrite: true);
 
         return destPath;

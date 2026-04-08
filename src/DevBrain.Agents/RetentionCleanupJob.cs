@@ -28,26 +28,38 @@ public class RetentionCleanupJob : IIntelligenceAgent
     private static async Task<int> TrimOldMetadata(AgentContext ctx)
     {
         var cutoff = DateTime.UtcNow.AddDays(-7);
-        var old = await ctx.Observations.Query(new ObservationFilter
-        {
-            Before = cutoff,
-            Limit = 500,
-        });
+        var totalCount = 0;
 
-        var count = 0;
-        foreach (var obs in old)
+        while (true)
         {
-            if (obs.Metadata is "{}" or "") continue;
-
-            var trimmed = TrimMetadataFields(obs.Metadata);
-            if (trimmed != obs.Metadata)
+            var batch = await ctx.Observations.Query(new ObservationFilter
             {
-                await ctx.Observations.Update(obs with { Metadata = trimmed });
-                count++;
+                Before = cutoff,
+                Limit = 500,
+            });
+
+            if (batch.Count == 0) break;
+
+            var batchTrimmed = 0;
+            foreach (var obs in batch)
+            {
+                if (obs.Metadata is "{}" or "") continue;
+
+                var trimmed = TrimMetadataFields(obs.Metadata);
+                if (trimmed != obs.Metadata)
+                {
+                    await ctx.Observations.Update(obs with { Metadata = trimmed });
+                    batchTrimmed++;
+                }
             }
+
+            totalCount += batchTrimmed;
+
+            // If no observations in this batch needed trimming, we're done
+            if (batchTrimmed == 0) break;
         }
 
-        return count;
+        return totalCount;
     }
 
     private static string TrimMetadataFields(string metadata)
@@ -125,7 +137,7 @@ public class RetentionCleanupJob : IIntelligenceAgent
         var count = 0;
         foreach (var file in Directory.GetFiles(transcriptDir, "*.jsonl"))
         {
-            if (File.GetCreationTimeUtc(file) < cutoff)
+            if (File.GetLastWriteTimeUtc(file) < cutoff)
             {
                 File.Delete(file);
                 count++;

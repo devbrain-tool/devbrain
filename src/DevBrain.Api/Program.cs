@@ -151,7 +151,8 @@ builder.Services.AddSingleton<FieldAwareRedactor>();
 builder.Services.AddSingleton(sp => new EventIngestionService(
     sp.GetRequiredService<IObservationStore>(),
     new SecretPatternRedactor(),
-    sp.GetRequiredService<FieldAwareRedactor>()));
+    sp.GetRequiredService<FieldAwareRedactor>(),
+    sp.GetRequiredService<ILogger<EventIngestionService>>()));
 
 var app = builder.Build();
 

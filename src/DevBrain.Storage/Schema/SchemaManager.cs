@@ -197,22 +197,35 @@ public static class SchemaManager
         if (columns.Contains("metadata"))
             return;
 
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = """
-            ALTER TABLE observations ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
-            ALTER TABLE observations ADD COLUMN tool_name TEXT;
-            ALTER TABLE observations ADD COLUMN outcome TEXT;
-            ALTER TABLE observations ADD COLUMN duration_ms INTEGER;
-            ALTER TABLE observations ADD COLUMN turn_number INTEGER;
+        using var tx = connection.BeginTransaction();
+        try
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                ALTER TABLE observations ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
+                ALTER TABLE observations ADD COLUMN tool_name TEXT;
+                ALTER TABLE observations ADD COLUMN outcome TEXT;
+                ALTER TABLE observations ADD COLUMN duration_ms INTEGER;
+                ALTER TABLE observations ADD COLUMN turn_number INTEGER;
 
-            CREATE INDEX IF NOT EXISTS idx_obs_tool_name ON observations(tool_name);
-            CREATE INDEX IF NOT EXISTS idx_obs_outcome ON observations(outcome);
-            """;
-        cmd.ExecuteNonQuery();
+                CREATE INDEX IF NOT EXISTS idx_obs_tool_name ON observations(tool_name);
+                CREATE INDEX IF NOT EXISTS idx_obs_outcome ON observations(outcome);
+                """;
+            cmd.ExecuteNonQuery();
 
-        using var versionCmd = connection.CreateCommand();
-        versionCmd.CommandText = "UPDATE _meta SET value = '2' WHERE key = 'schema_version'";
-        versionCmd.ExecuteNonQuery();
+            using var versionCmd = connection.CreateCommand();
+            versionCmd.Transaction = tx;
+            versionCmd.CommandText = "UPDATE _meta SET value = '2' WHERE key = 'schema_version'";
+            versionCmd.ExecuteNonQuery();
+
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
     }
 
     public static int GetSchemaVersion(SqliteConnection connection)

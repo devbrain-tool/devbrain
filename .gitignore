@@ -16,3 +16,4 @@ packages/tray/dist/
 packages/tray/node_modules/
 packages/tray/resources/bin/
 packages/tray/resources/wwwroot/
+out/

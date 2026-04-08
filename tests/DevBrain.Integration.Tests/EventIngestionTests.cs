@@ -3,6 +3,7 @@ namespace DevBrain.Integration.Tests;
 using System.Text.Json;
 using DevBrain.Api.Services;
 using DevBrain.Capture.Privacy;
+using Microsoft.Extensions.Logging.Abstractions;
 using DevBrain.Core.Enums;
 using DevBrain.Storage;
 using DevBrain.Storage.Schema;
@@ -18,7 +19,7 @@ public class EventIngestionTests
         SchemaManager.Initialize(conn);
 
         var store = new SqliteObservationStore(conn);
-        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor());
+        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor(), NullLogger<EventIngestionService>.Instance);
 
         var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
@@ -52,7 +53,7 @@ public class EventIngestionTests
         SchemaManager.Initialize(conn);
 
         var store = new SqliteObservationStore(conn);
-        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor());
+        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor(), NullLogger<EventIngestionService>.Instance);
 
         var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
@@ -77,7 +78,7 @@ public class EventIngestionTests
         SchemaManager.Initialize(conn);
 
         var store = new SqliteObservationStore(conn);
-        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor());
+        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor(), NullLogger<EventIngestionService>.Instance);
 
         var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
@@ -103,7 +104,7 @@ public class EventIngestionTests
         SchemaManager.Initialize(conn);
 
         var store = new SqliteObservationStore(conn);
-        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor());
+        var service = new EventIngestionService(store, new SecretPatternRedactor(), new FieldAwareRedactor(), NullLogger<EventIngestionService>.Instance);
 
         var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
         {

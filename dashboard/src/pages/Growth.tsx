@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type GrowthReport, type GrowthMilestone } from '../api/client';
+import MarkdownContent from '../components/MarkdownContent';
 
 const milestoneColors: Record<string, string> = {
   First: '#3b82f6',
@@ -40,7 +41,7 @@ export default function Growth() {
       {report?.narrative && (
         <div style={styles.narrativeCard}>
           <div style={styles.narrativeLabel}>This Week</div>
-          <div style={styles.narrative}>{report.narrative}</div>
+          <MarkdownContent content={report.narrative} />
         </div>
       )}
 

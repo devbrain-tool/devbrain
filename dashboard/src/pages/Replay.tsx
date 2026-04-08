@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, type DecisionChain } from '../api/client';
+import MarkdownContent from '../components/MarkdownContent';
 
 const stepColors: Record<string, string> = {
   Decision: '#22c55e',
@@ -61,7 +62,7 @@ export default function Replay() {
 
       {chain && (
         <div style={styles.result}>
-          <div style={styles.narrative}>{chain.narrative}</div>
+          <MarkdownContent content={chain.narrative} />
 
           <div style={styles.timeline}>
             {chain.steps.map((step, i) => (

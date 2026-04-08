@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type BriefingLatest } from '../api/client';
+import MarkdownContent from '../components/MarkdownContent';
 
 export default function Briefings() {
   const [files, setFiles] = useState<string[]>([]);
@@ -117,7 +118,7 @@ export default function Briefings() {
               <div style={styles.contentHeader}>
                 <span style={styles.dateLabel}>{current.file.replace('.md', '')}</span>
               </div>
-              <pre style={styles.pre}>{current.content}</pre>
+              <MarkdownContent content={current.content} collapsible collapseAfterLines={20} />
             </>
           ) : (
             <p style={styles.empty}>

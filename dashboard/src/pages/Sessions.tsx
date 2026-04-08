@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type SessionSummary } from '../api/client';
+import MarkdownContent from '../components/MarkdownContent';
 
 const phaseColors: Record<string, string> = {
   Exploration: '#3b82f6',
@@ -93,7 +94,9 @@ export default function Sessions() {
               </>
             )}
 
-            <div style={styles.outcome}>{session.outcome}</div>
+            <div style={styles.outcome}>
+              <MarkdownContent content={session.outcome} />
+            </div>
 
             <div style={styles.actions}>
               <button
@@ -113,7 +116,9 @@ export default function Sessions() {
             </div>
 
             {expanded === session.id && (
-              <div style={styles.narrative}>{session.narrative}</div>
+              <div style={{ marginTop: '1rem' }}>
+                <MarkdownContent content={session.narrative} collapsible collapseAfterLines={15} />
+              </div>
             )}
           </div>
         ))}

@@ -47,12 +47,16 @@ Claude Code Hooks                        DevBrain Daemon
 
 | Component | Location | Responsibility |
 |---|---|---|
-| `devbrain-hook` | CLI project (new binary) | Read stdin, truncate, POST to daemon |
+| `devbrain-hook` | CLI project (thin binary) | Read stdin, forward raw JSON to daemon via HTTP. No business logic. |
 | `/api/v1/events` | Api endpoint (new) | Receive events, route by type |
-| `EventIngestionService` | Api service (new) | Normalize, truncate, privacy filter, write |
-| `TranscriptParser` | Capture project (new) | Parse JSONL for turn metrics + session aggregates |
+| `EventIngestionService` | Api service (new) | Smart truncation, privacy filter, rawContent generation, write to DB |
+| `SmartTruncator` | Capture project (new) | Tool-type-aware truncation logic |
+| `TranscriptParser` | Capture project (new) | Parse JSONL for turn metrics + session aggregates. Reads file from `transcriptPath` field (same filesystem as daemon). |
+| `TranscriptArchiver` | Capture project (new) | Copy JSONL to ~/.devbrain/transcripts/ |
 | `RetentionCleanupJob` | Agents project (new) | Daily tiered retention cleanup |
 | `FieldAwareRedactor` | Capture project (new) | Privacy Layer 2 — field-specific redaction |
+
+**Dependency compliance:** The `devbrain-hook` CLI binary depends on Core only — it reads stdin JSON and POSTs to the daemon. All business logic (truncation, transcript parsing, privacy filtering) runs in the daemon (Api/Capture projects). The `transcriptPath` is passed as a string field in the event payload; the daemon reads the file directly (same machine, same filesystem).
 
 ---
 
@@ -136,6 +140,27 @@ ALTER TABLE observations ADD COLUMN turn_number INTEGER;
 CREATE INDEX IF NOT EXISTS idx_obs_tool_name ON observations(tool_name);
 CREATE INDEX IF NOT EXISTS idx_obs_outcome ON observations(outcome);
 ```
+
+**Migration strategy:** `ALTER TABLE ADD COLUMN` with defaults. Existing observations get `metadata = '{}'`, `tool_name = NULL`, `outcome = NULL`, `duration_ms = NULL`, `turn_number = NULL`. Non-destructive — SQLite adds columns without rewriting existing rows. No data migration needed.
+
+### rawContent Backward Compatibility
+
+New events still populate `rawContent` with a human-readable summary string. This keeps FTS5 search, briefing agents, and existing dashboard pages working without changes. The structured data lives in `metadata`.
+
+| EventType | rawContent format |
+|---|---|
+| ToolCall | `"Bash: npm test → exit 0"` or `"Edit: src/main.ts (3 lines changed)"` |
+| ToolFailure | `"Bash FAILED: npm test → permission denied"` |
+| UserPrompt | `"User: Fix the null pointer in auth middleware"` |
+| SessionStart | `"Session started: claude-sonnet-4-6 (startup)"` |
+| SessionEnd | `"Session ended: 24 turns, 195K tokens, 2 errors"` |
+| TurnComplete | `"Turn 5 complete: 8.5K in / 1.2K out (3.4s)"` |
+| TurnError | `"Turn error: rate_limit"` |
+| SubagentStart | `"Subagent started: Explore (subagent-xyz)"` |
+| SubagentStop | `"Subagent finished: Explore — Found 3 matching files..."` |
+| FileChange | `"File modified: src/main.ts"` |
+| CwdChange | `"Directory changed: /project → /project/backend"` |
+| ContextCompact | `"Context compacted"` |
 
 ### Metadata JSON Shapes by EventType
 
@@ -268,6 +293,8 @@ Truncated fields get `"[truncated at NKB]"` appended.
 
 For `UserPrompt` events: prompt text stored in full (no truncation — user prompts are rarely large and are the most valuable signal).
 
+**Note:** Smart truncation runs in the daemon's `EventIngestionService` (not in the hook binary). The hook binary forwards raw data unchanged.
+
 ---
 
 ## Transcript Parsing
@@ -372,14 +399,15 @@ A compiled .NET single-file binary, part of the CLI project. Invoked by Claude C
 
 **Behavior:**
 1. Read JSON from stdin (Claude Code hook payload)
-2. Extract `session_id`, `cwd`, `transcript_path`, and event-specific fields
-3. Apply smart truncation based on event type + tool name
-4. POST to `http://127.0.0.1:37800/api/v1/events`
-5. For `Stop`: also read transcript tail for turn metrics
-6. For `SessionEnd`: also archive transcript + compute aggregates
-7. Exit 0 always (never blocks Claude Code)
+2. Add `hookEvent` field from command-line argument
+3. Forward the entire JSON payload as-is to `http://127.0.0.1:37800/api/v1/events`
+4. Exit 0 always (never blocks Claude Code)
 
-**Performance target:** < 100ms per invocation. Critical path is the HTTP POST to localhost.
+The hook binary does NO business logic — no truncation, no transcript parsing, no privacy filtering. All of that runs in the daemon's `EventIngestionService`. This keeps the hook thin (<50ms), avoids dependency violations (CLI depends on Core only), and centralizes all processing in one place.
+
+**Performance target:** < 50ms per invocation. Just stdin read + one HTTP POST to localhost.
+
+**Transcript handling:** The hook passes `transcriptPath` as a field in the payload. The daemon reads the transcript file directly when processing `TurnComplete` (tail read for turn metrics) and `SessionEnd` (full parse for aggregates + archive copy) events.
 
 ### settings.json Configuration
 
@@ -476,13 +504,32 @@ Content-Type: application/json
 1. Map `hookEvent` → `EventType`
 2. Extract `project` from `cwd` (last path segment or git root)
 3. Extract `files_involved` from `toolInput` (any `file_path`, `path` fields)
-4. Build `metadata` JSON from event-specific fields
-5. Set `tool_name`, `outcome`, `duration_ms`, `turn_number` columns
-6. Run Privacy Layer 1 (blanket regex on all string fields)
-7. Run Privacy Layer 2 (field-aware redaction)
-8. Check `.devbrainignore` — drop if file path matches
-9. Insert into `observations` table
-10. Publish to EventBus (triggers agents)
+4. Apply smart truncation based on event type + tool name
+5. Build `metadata` JSON from event-specific fields
+6. Generate `rawContent` summary string (see rawContent Backward Compatibility table)
+7. Set `tool_name` and `outcome` columns from payload
+8. Set `turn_number` from in-memory per-session counter (see below)
+9. For `TurnComplete`: parse transcript tail → set `duration_ms` from `latency_ms`
+10. For `SessionEnd`: parse full transcript → compute aggregates, archive JSONL
+11. Run Privacy Layer 1 (blanket regex on all string fields + metadata)
+12. Run Privacy Layer 2 (field-aware redaction)
+13. Check `.devbrainignore` — drop if file path matches
+14. Insert into `observations` table
+15. Publish to EventBus (triggers agents)
+
+### duration_ms Population
+
+Claude Code hooks do not expose per-tool execution duration. The `duration_ms` column is populated ONLY for:
+- `TurnComplete` events — extracted from transcript JSONL (`latency_ms` field)
+- All other event types — `duration_ms = NULL`
+
+### turn_number Tracking
+
+The `EventIngestionService` maintains a per-session turn counter in memory (`Dictionary<string, int>`):
+- `SessionStart` → reset counter to 0 for this session_id
+- `TurnComplete` → increment counter, assign to the event
+- `ToolCall`, `ToolFailure`, `UserPrompt` → inherit current counter value (which turn they belong to)
+- Counter is lost on daemon restart — acceptable since it only affects the in-progress session, which gets a new SessionStart on reconnect
 
 ---
 
@@ -532,20 +579,18 @@ Content-Type: application/json
 
 | File | Purpose |
 |---|---|
-| `src/DevBrain.Cli/Commands/HookCommand.cs` | `devbrain-hook` entry point — reads stdin, truncates, POSTs |
-| `src/DevBrain.Cli/Hooks/HookPayload.cs` | Deserialization models for Claude Code hook stdin |
-| `src/DevBrain.Cli/Hooks/SmartTruncator.cs` | Tool-type-aware truncation logic |
-| `src/DevBrain.Cli/Hooks/TranscriptTailReader.cs` | Read last entry from JSONL for turn metrics |
+| `src/DevBrain.Cli/Commands/HookCommand.cs` | Thin `devbrain hook` entry point — reads stdin, forwards to daemon via HTTP |
 | `src/DevBrain.Api/Endpoints/EventEndpoints.cs` | POST /api/v1/events endpoint |
-| `src/DevBrain.Api/Services/EventIngestionService.cs` | Normalize, privacy filter, write events |
+| `src/DevBrain.Api/Services/EventIngestionService.cs` | Orchestrates: truncation, rawContent gen, privacy, turn tracking, transcript, write |
+| `src/DevBrain.Capture/Truncation/SmartTruncator.cs` | Tool-type-aware truncation logic |
 | `src/DevBrain.Capture/Privacy/FieldAwareRedactor.cs` | Privacy Layer 2 — field-specific redaction |
-| `src/DevBrain.Capture/Transcript/TranscriptParser.cs` | Full transcript parsing for session aggregates |
+| `src/DevBrain.Capture/Transcript/TranscriptParser.cs` | Parse JSONL — tail read for turn metrics, full parse for session aggregates |
 | `src/DevBrain.Capture/Transcript/TranscriptArchiver.cs` | Copy JSONL to ~/.devbrain/transcripts/ |
-| `src/DevBrain.Agents/RetentionCleanupJob.cs` | Daily tiered retention (7d trim, 30d transcript delete) |
-| `tests/DevBrain.Cli.Tests/SmartTruncatorTests.cs` | Truncation logic tests |
+| `src/DevBrain.Agents/RetentionCleanupJob.cs` | Daily tiered retention (7d trim metadata, 30d delete transcripts) |
+| `tests/DevBrain.Capture.Tests/SmartTruncatorTests.cs` | Truncation logic tests |
 | `tests/DevBrain.Capture.Tests/FieldAwareRedactorTests.cs` | Privacy Layer 2 tests |
 | `tests/DevBrain.Capture.Tests/TranscriptParserTests.cs` | Transcript parsing tests |
-| `tests/DevBrain.Storage.Tests/RetentionCleanupTests.cs` | Retention cleanup tests |
+| `tests/DevBrain.Agents.Tests/RetentionCleanupTests.cs` | Retention cleanup tests |
 | `tests/DevBrain.Integration.Tests/EventIngestionTests.cs` | End-to-end event capture tests |
 
 ### Modified Files
@@ -555,8 +600,8 @@ Content-Type: application/json
 | `src/DevBrain.Core/Enums/EventType.cs` | Add 10 new enum values |
 | `src/DevBrain.Core/Models/Observation.cs` | Add `Metadata`, `ToolName`, `Outcome`, `DurationMs`, `TurnNumber` properties |
 | `src/DevBrain.Core/Interfaces/IObservationStore.cs` | Add filter support for new fields |
-| `src/DevBrain.Storage/Schema/SchemaManager.cs` | Add columns, indexes, migration |
+| `src/DevBrain.Storage/Schema/SchemaManager.cs` | Add columns + indexes (ALTER TABLE with defaults for migration) |
 | `src/DevBrain.Storage/SqliteObservationStore.cs` | Read/write new columns |
 | `src/DevBrain.Api/Program.cs` | Register new endpoint + EventIngestionService |
 | `src/DevBrain.Cli/Program.cs` | Register HookCommand |
-| `src/DevBrain.Capture/Pipeline/PrivacyFilter.cs` | Integrate FieldAwareRedactor |
+| `src/DevBrain.Capture/Pipeline/PrivacyFilter.cs` | Integrate FieldAwareRedactor as Layer 2 |

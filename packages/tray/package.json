@@ -4,6 +4,7 @@
   "private": true,
   "description": "DevBrain system tray app — manages daemon lifecycle and bootstrapping",
   "author": "DevBrain",
+  "homepage": "https://github.com/devbrain-tool/devbrain",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
